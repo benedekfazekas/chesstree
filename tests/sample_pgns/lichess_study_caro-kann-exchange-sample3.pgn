@@ -1,0 +1,16 @@
+[Event "caro-kann, exchange -- sample 3: Chapter 1"]
+[Date "2025.11.08"]
+[Result "*"]
+[Variant "Standard"]
+[ECO "B10"]
+[Opening "Caro-Kann Defense"]
+[StudyName "caro-kann, exchange -- sample 3"]
+[ChapterName "Chapter 1"]
+[ChapterURL "https://lichess.org/study/XD9rMvpB/y29BNs01"]
+[Annotator "https://lichess.org/@/lisperer"]
+[UTCDate "2025.11.08"]
+[UTCTime "16:17:43"]
+
+1. e4 c6 2. c3 d5 3. exd5 cxd5 4. d4 Nf6 5. Nf3 Bg4 6. h3 Bxf3 7. Qxf3 e6 8. Bd3 Bd6 9. Bg5 h6 10. Bxf6 Qxf6 11. Qxf6 gxf6 12. O-O Nc6 (12... Nd7 { maybe better, more options on both sides of the board, specially if f5 played at some point }) 13. Nd2 f5 { position: black's bishop better but there is weakness on the e file; the f7 pawn either defends e6 or controls e5 } 14. f4 Rg8 { what is the priority? transfering the knight to the king side or doubling up the rooks on the g file? maybe doubling up is too slow, is 0-0-0 an option here? } 15. Kh2 Ne7 16. g3 Kd7 17. Nf3 a6 18. Rfe1 Rac8 (18... Rg7 { does not yield much for example 19. Ke5 Kc7 20. a3 Rag8 21. Rg1 Kc6 } 19. Ne5+ Kc7 20. a3 Rag8 (20... Ng8 { maybe } 21. b3 Nf6 22. c4 Rag8 23. Rg1 Ne4 24. g4 Bxe5 25. fxe5 fxg4 26. hxg4) 21. Rg1) 19. a3 Ng6 20. Re2 h5 21. h4 Nf8 { Nf8-Nh7-Nf6-Ne4 or Ng4 journey } 22. Rae1 Nh7 23. Ng5 Rg7 24. Kg2 Nf6 25. Kf3 { what is the point of Kf3? apart from moving away from the g Kh3 better } 25... Ng4 26. Nxe6 { Nxe6 sac clearly did not yield enough, is there a way to make it work? } 26... fxe6 27. Rxe6 Rf8 28. R1e2 (28. c4 { would c4 work here? in case Re7 maybe but not really } 28... Re7 (28... dxc4 { but much better for black } 29. Bxc4 Nh2+ 30. Kf2 Rfg8) 29. cxd5 Nf6 30. Bxf5 Nxd5 31. Rxe7+ Kd8 (31... Kc6 32. Bd7+ Kb6 33. R7e6 Nxf4 34. gxf4 Rxf4+ 35. Ke3 Kc7)) 28... Re7 29. Rg6 Rxe2 30. Bxe2 Re8 31. Bd1 { no good square for the bishop anymore } 31... Re3+ 32. Kg2 Re6 33. Rg5 { rook exchange would save the bishop, but after the exchange black is better } (33. Rxe6 Kxe6 34. Kf3) 33... Ne3+ 34. Kf3 Nxd1 35. Rxf5 Rh6 36. Rxd5 Nxb2 37. Rg5 Bxa3 38. f5 Nc4 39. Ke4 Nd6+ 40. Ke5 Nf7+ 41. Kf4 Bc1+ *
+
+

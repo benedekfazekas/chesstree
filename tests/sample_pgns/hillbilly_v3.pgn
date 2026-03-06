@@ -1,0 +1,13 @@
+[Event "caro-kann, hillbilly: hillbilly"]
+[Result "*"]
+[Variant "Standard"]
+[ECO "B10"]
+[Opening "Caro-Kann Defense: Hillbilly Attack"]
+[StudyName "caro-kann, hillbilly"]
+[ChapterName "hillbilly"]
+[UTCDate "2025.07.29"]
+[UTCTime "08:47:17"]
+[Annotator "https://lichess.org/@/lisperer"]
+[ChapterURL "https://lichess.org/study/eJdXLElH/f0tsfY5b"]
+
+1. e4 c6 2. Bc4 d5 3. exd5 (3. Bb3 { played on the master's level, almost never played on club level } 3... dxe4 4. Qh5 { Schaeffer Gambit, black's goal is to remove the queen from the h file } 4... g6 5. Qh4 a5 (5... Nf6 { the line white wants to play } 6. Nc3 Bf5 7. f3 exf3 8. Nxf3 Bg7 9. d4 O-O 10. O-O Nbd7 11. Bh6 { black still has a slight advantage but very difficult for a human to defend all possible attacks by white }) 6. a4 Na6 { developing the knight but the real goal is the b3 bishop } 7. Qxe4 Nc5 8. Qc4 Nxb3 9. Qxb3 Bg7 { with small advantage for black }) 3... cxd5 4. Bb3 (4. Bb5+ { more aggressive less frequently played } 4... Bd7 5. Bxd7+ Nxd7 6. Nf3 Ngf6 7. O-O e6 8. d4 Bd6 { a somewhat typical caro set up wo/ the light squared bishop } 9. Bg5 Qb6 10. b3 O-O 11. Nc3 Rfc8 { with a slight adv for black with no obvious results from the opening for white }) 4... Nf6 5. Nf3 (5. d4 Bg4 { with the idea to weaken king side defences and make development awkward } 6. f3 Bd7 { Bf5 works as well } 7. Bg5 e6 8. Nc3 h6 9. Bh4 Nc6 10. Nge2 Be7 { or Bd6 } 11. O-O O-O { comfortable for black }) (5. d3 Bg4 6. f3 Bd7 7. Bg5 e6 8. Ne2 Nc6 9. O-O h6 10. Bh4 Be7 { comfortable position, possible plan is a minority attack specially if Kc3 happens: both knight and bishop can be targets }) 5... Nc6 6. d4 Bg4 7. h3 { inaccuracy } (7. c3 { stronger than h3 } 7... e6 8. O-O Bd6 9. Bg5 Qc7 { threat agains h2 via removing knight f3 } 10. h3 Bh5 11. Nbd2 h6 12. Bxf6 gxf6 { plan: castle long and attack on the g file }) 7... Bxf3 { white either leaves e4 undefended or accept kingside damage } 8. Qxf3 Nxd4 9. Qd3 Nxb3 10. Qxb3 Qc7 11. O-O e6 12. Bg5 Be7 { comfortable with a pawn ahead } *

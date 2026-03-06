@@ -1,0 +1,235 @@
+"""
+Functional tests using real PGN files from tests/sample_pgns/.
+
+These tests verify observable behaviour of the full conversion pipeline —
+board images, NAG handling, and variation structure — without asserting on
+exact output content.
+"""
+from __future__ import annotations
+
+import io
+import json
+import pathlib
+from typing import Iterator
+
+import chess.pgn
+import pytest
+
+from chesstree.cli import pgn_to_json
+from chesstree.json_exporter import JsonExporter
+
+SAMPLE_PGNS = pathlib.Path(__file__).parent / "sample_pgns"
+
+HILLBILLY = SAMPLE_PGNS / "hillbilly_v3.pgn"
+CARO_KANN = SAMPLE_PGNS / "lichess_study_caro-kann-exchange-sample3.pgn"
+LISPERER  = SAMPLE_PGNS / "lisperer_vs_verenitach.pgn"
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+def convert(pgn_path: pathlib.Path, forblack: bool = False, edn: bool = False, concise: bool = False) -> dict:
+    """Run the full pgn_to_json pipeline and return the parsed JSON dict."""
+    output = io.StringIO()
+    output.name = "<stdout>"
+    with open(pgn_path) as f:
+        pgn_to_json(f, output, forblack=forblack, edn=edn, concise=concise)
+    output.seek(0)
+    return json.loads(output.read())
+
+
+def iter_moves(moves: list) -> Iterator[dict]:
+    """Yield every move entry recursively, descending into variations."""
+    for entry in moves:
+        if "variation" in entry:
+            yield from iter_moves(entry["variation"])
+        else:
+            yield entry
+
+
+def main_line_moves(moves: list) -> list[dict]:
+    """Return only the top-level (non-variation) move entries."""
+    return [m for m in moves if "variation" not in m]
+
+
+def find_in_main_line(moves: list, san: str, turn: str | None = None) -> dict | None:
+    """Find the first matching move in the main line (variations excluded)."""
+    for entry in main_line_moves(moves):
+        if entry["san"] == san and (turn is None or entry["turn"] == turn):
+            return entry
+    return None
+
+
+def nag_symbols(move: dict) -> list[str | None]:
+    return [list(n.values())[0] for n in move.get("nags", [])]
+
+
+# ---------------------------------------------------------------------------
+# Board images
+# ---------------------------------------------------------------------------
+
+class TestBoardImages:
+    def test_all_main_line_moves_have_board_images(self):
+        data = convert(LISPERER)
+        moves = main_line_moves(data["moves"])
+        assert len(moves) > 0
+        for move in moves:
+            assert "board_img_before" in move, f"Missing board_img_before on {move['san']}"
+            assert "board_img_after"  in move, f"Missing board_img_after on {move['san']}"
+
+    def test_board_images_contain_svg(self):
+        data = convert(LISPERER)
+        for move in main_line_moves(data["moves"]):
+            assert move["board_img_before"].startswith("<svg"), f"board_img_before not SVG on {move['san']}"
+            assert move["board_img_after"].startswith("<svg"),  f"board_img_after not SVG on {move['san']}"
+
+    def test_variation_moves_also_have_board_images(self):
+        data = convert(HILLBILLY)
+        all_moves = list(iter_moves(data["moves"]))
+        assert all_moves, "No moves found"
+        for move in all_moves:
+            assert "board_img_before" in move, f"Missing board_img_before in variation on {move['san']}"
+            assert "board_img_after"  in move, f"Missing board_img_after in variation on {move['san']}"
+
+    def test_black_orientation_produces_different_svg(self):
+        data_white = convert(LISPERER, forblack=False)
+        data_black = convert(LISPERER, forblack=True)
+        first_white = data_white["moves"][0]["board_img_before"]
+        first_black = data_black["moves"][0]["board_img_before"]
+        assert first_white != first_black, "Board SVG should differ between white and black orientation"
+
+
+# ---------------------------------------------------------------------------
+# NAGs
+# ---------------------------------------------------------------------------
+
+class TestNags:
+    def test_mistake_nag_on_h3(self):
+        # 16. h3? is annotated as a mistake in the main line
+        data = convert(LISPERER)
+        move = find_in_main_line(data["moves"], "h3", turn="white")
+        assert move is not None, "h3 not found in main line"
+        assert "?" in nag_symbols(move), f"Expected '?' NAG on h3, got {nag_symbols(move)}"
+
+    def test_blunder_nag_on_g5(self):
+        # 24... g5?? is a blunder in the main line
+        data = convert(LISPERER)
+        move = find_in_main_line(data["moves"], "g5", turn="black")
+        assert move is not None, "g5 not found in main line"
+        assert "??" in nag_symbols(move), f"Expected '??' NAG on g5, got {nag_symbols(move)}"
+
+    def test_dubious_move_nag_on_nxg5(self):
+        # 29. Nxg5?! is annotated as dubious in the main line
+        data = convert(LISPERER)
+        move = find_in_main_line(data["moves"], "Nxg5", turn="white")
+        assert move is not None, "Nxg5 not found in main line"
+        assert "?!" in nag_symbols(move), f"Expected '?!' NAG on Nxg5, got {nag_symbols(move)}"
+
+    def test_blunder_nag_in_variation(self):
+        # Be2?? appears inside a variation
+        data = convert(LISPERER)
+        def has_blunder(moves: list) -> bool:
+            for entry in moves:
+                if "variation" in entry:
+                    if has_blunder(entry["variation"]):
+                        return True
+                elif "??" in nag_symbols(entry):
+                    return True
+            return False
+        assert has_blunder(data["moves"]), "No blunder (??) NAG found anywhere in variations"
+
+    def test_good_move_nag_in_variation(self):
+        # e5! appears in a variation
+        data = convert(LISPERER)
+        def has_good_move(moves: list) -> bool:
+            for entry in moves:
+                if "variation" in entry:
+                    if has_good_move(entry["variation"]):
+                        return True
+                elif "!" in nag_symbols(entry):
+                    return True
+            return False
+        assert has_good_move(data["moves"]), "No good move (!) NAG found anywhere in variations"
+
+    def test_numeric_nag_without_symbol(self):
+        # 11... Nf6 $10 — NAG 10 has no standard PGN symbol, value should be None
+        data = convert(LISPERER)
+        nf6 = find_in_main_line(data["moves"], "Nf6", turn="black")
+        assert nf6 is not None, "Nf6 (black, move 11) not found in main line"
+        assert "nags" in nf6, "Expected $10 NAG on Nf6"
+        nag_keys = [list(n.keys())[0] for n in nf6["nags"]]
+        # JSON serialises integer dict keys as strings, so 10 → "10"
+        assert "10" in nag_keys, f"Expected NAG key '10', got {nag_keys}"
+        # NAG 10 has no symbol mapping → value is None
+        nag10_entry = next(n for n in nf6["nags"] if list(n.keys())[0] == "10")
+        assert list(nag10_entry.values())[0] is None
+
+    def test_clean_moves_have_no_nags(self):
+        # d4 (first move) carries no annotation
+        data = convert(LISPERER)
+        d4 = find_in_main_line(data["moves"], "d4", turn="white")
+        assert d4 is not None
+        assert "nags" not in d4
+
+
+# ---------------------------------------------------------------------------
+# Variations
+# ---------------------------------------------------------------------------
+
+class TestVariations:
+    def test_variations_present(self):
+        data = convert(HILLBILLY)
+        variation_entries = [m for m in data["moves"] if "variation" in m]
+        assert len(variation_entries) > 0, "Expected variation entries in hillbilly game"
+
+    def test_each_variation_entry_has_non_empty_move_list(self):
+        data = convert(HILLBILLY)
+        for entry in data["moves"]:
+            if "variation" in entry:
+                assert isinstance(entry["variation"], list)
+                assert len(entry["variation"]) > 0, "Variation entry has empty move list"
+
+    def test_nested_variations_reach_depth_two(self):
+        # hillbilly has variations inside variations
+        data = convert(HILLBILLY)
+
+        def max_depth(moves: list, current: int = 0) -> int:
+            best = current
+            for entry in moves:
+                if "variation" in entry:
+                    best = max(best, max_depth(entry["variation"], current + 1))
+            return best
+
+        assert max_depth(data["moves"]) >= 2, "Expected at least 2 levels of nested variations"
+
+    def test_variations_absent_when_disabled(self):
+        with open(HILLBILLY) as f:
+            game = chess.pgn.read_game(f)
+        exporter = JsonExporter(variations=False)
+        data = json.loads(game.accept(exporter))
+        variation_entries = [m for m in data["moves"] if "variation" in m]
+        assert len(variation_entries) == 0, "Expected no variation entries when variations=False"
+
+    def test_comments_present_in_study(self):
+        data = convert(CARO_KANN)
+        all_moves = list(iter_moves(data["moves"]))
+        moves_with_comments = [m for m in all_moves if "comments" in m]
+        assert len(moves_with_comments) > 0, "Expected comments in caro-kann study"
+
+    def test_comments_are_lists_of_strings(self):
+        data = convert(CARO_KANN)
+        for move in iter_moves(data["moves"]):
+            if "comments" in move:
+                assert isinstance(move["comments"], list), "comments should be a list"
+                for c in move["comments"]:
+                    assert isinstance(c, str), f"Each comment should be a string, got {type(c)}"
+
+    def test_lisperer_has_variations_and_comments(self):
+        # The annotated real game has both
+        data = convert(LISPERER)
+        variation_entries = [m for m in data["moves"] if "variation" in m]
+        all_moves = list(iter_moves(data["moves"]))
+        moves_with_comments = [m for m in all_moves if "comments" in m]
+        assert len(variation_entries) > 0, "Expected variations in annotated game"
+        assert len(moves_with_comments) > 0, "Expected comments in annotated game"
