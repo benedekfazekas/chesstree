@@ -17,6 +17,7 @@ import pytest
 
 from chesstree.cli import pgn_to_json
 from chesstree.json_exporter import JsonExporter
+from chesstree.json_parser import parse_json
 
 SAMPLE_PGNS = pathlib.Path(__file__).parent / "sample_pgns"
 
@@ -233,3 +234,45 @@ class TestVariations:
         moves_with_comments = [m for m in all_moves if "comments" in m]
         assert len(variation_entries) > 0, "Expected variations in annotated game"
         assert len(moves_with_comments) > 0, "Expected comments in annotated game"
+
+
+# ---------------------------------------------------------------------------
+# Round-trip: PGN → JSON → Game → PGN
+# ---------------------------------------------------------------------------
+
+def _roundtrip(pgn_path: pathlib.Path) -> tuple[str, str]:
+    """
+    Parse original PGN → game1, export to JSON, parse JSON → game2.
+    Returns (str(game1), str(game2)) for direct comparison.
+    Board images are not round-tripped (skipped in json_parser).
+    """
+    with open(pgn_path) as f:
+        game1 = chess.pgn.read_game(f)
+    json_str = game1.accept(JsonExporter(headers=True, comments=True, variations=True))
+    game2 = parse_json(json.loads(json_str))
+    return str(game1), str(game2)
+
+
+class TestRoundTrip:
+    """
+    PGN → JSON → Game round-trip tests using all three sample PGNs.
+
+    str(game) uses chess.pgn.StringExporter which renders headers, moves,
+    NAGs, comments, and all variations, so string equality implies correctness
+    of the entire game tree.
+    """
+
+    def test_lisperer_pgn_matches_after_roundtrip(self):
+        # Annotated real game: covers NAGs, variations, and comments
+        pgn1, pgn2 = _roundtrip(LISPERER)
+        assert pgn1 == pgn2
+
+    def test_hillbilly_pgn_matches_after_roundtrip(self):
+        # Opening study: covers deeply nested variations (3+ levels)
+        pgn1, pgn2 = _roundtrip(HILLBILLY)
+        assert pgn1 == pgn2
+
+    def test_caro_kann_pgn_matches_after_roundtrip(self):
+        # Lichess study: covers multiple variation branches and prose comments
+        pgn1, pgn2 = _roundtrip(CARO_KANN)
+        assert pgn1 == pgn2

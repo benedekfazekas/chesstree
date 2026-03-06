@@ -1,6 +1,6 @@
 # chesstree
 
-A command-line tool that converts PGN chess files to JSON or EDN. Each move in the output includes the move number, side to move, SAN notation, UCI notation, FEN position, and SVG board images (before and after the move). Game headers, comments, NAGs (move annotations), and variations are also included.
+A command-line tool for converting chess games between PGN and JSON/EDN. The `export` subcommand converts a PGN file to JSON or EDN — each move in the output includes move number, side to move, SAN and UCI notation, FEN position, SVG board images (before and after the move), comments, NAGs (move annotations), and variations. The `import` subcommand reads a chesstree JSON file and converts it back to PGN, making round-trips fully supported.
 
 ## Output format
 
@@ -68,14 +68,15 @@ The `chesstree` command is available whenever the virtual environment is active.
 
 ## Usage
 
-```
-usage: chesstree [-h] [--version] -i INPUT [-o OUTPUT] [-b] [-e] [-c]
+`chesstree` has two subcommands: **export** (PGN → JSON/EDN) and **import** (JSON → PGN).
 
-PGN to JSON/EDN converter
+### export — Convert PGN to JSON or EDN
+
+```
+usage: chesstree export [-h] -i INPUT [-o OUTPUT] [-b] [-e] [-c]
 
 options:
   -h, --help           show this help message and exit
-  --version            show program's version number and exit
   -i, --input INPUT    The input PGN file to be processed (use '-' for stdin)
   -o, --output OUTPUT  The output file for results (default: stdout)
   -b, --forblack       Board images are generated from Black's perspective
@@ -83,30 +84,54 @@ options:
   -c, --concise        Output compact (non-pretty-printed) JSON/EDN
 ```
 
+### import — Convert chesstree JSON back to PGN
+
+```
+usage: chesstree import [-h] -i INPUT [-o OUTPUT]
+
+options:
+  -h, --help           show this help message and exit
+  -i, --input INPUT    The input JSON file produced by 'chesstree export'
+  -o, --output OUTPUT  The output PGN file (default: stdout)
+```
+
 ### Examples
 
 Convert a PGN file to JSON and write to a file:
 
 ```bash
-chesstree -i game.pgn -o game.json
+chesstree export -i game.pgn -o game.json
 ```
 
 Convert to EDN and print to stdout:
 
 ```bash
-chesstree -i game.pgn -e
+chesstree export -i game.pgn -e
 ```
 
 Read from stdin, write compact JSON to a file:
 
 ```bash
-cat game.pgn | chesstree -i - -o game.json -c
+cat game.pgn | chesstree export -i - -o game.json -c
 ```
 
 Generate board images from Black's perspective:
 
 ```bash
-chesstree -i game.pgn -o game.json -b
+chesstree export -i game.pgn -o game.json -b
+```
+
+Convert a chesstree JSON file back to PGN:
+
+```bash
+chesstree import -i game.json -o game.pgn
+```
+
+Round-trip a game through JSON (useful for scripting):
+
+```bash
+chesstree export -i game.pgn -o game.json
+chesstree import -i game.json -o game_restored.pgn
 ```
 
 ---
@@ -144,11 +169,11 @@ pytest --cov=chesstree --cov-report=term-missing
 Because the package is installed in editable mode, you can run `chesstree` directly from the terminal (with the virtual environment active) and your latest source changes are picked up immediately:
 
 ```bash
-chesstree -i path/to/game.pgn -o /tmp/out.json
+chesstree export -i path/to/game.pgn -o /tmp/out.json
 ```
 
 Alternatively, you can invoke the module directly without installing:
 
 ```bash
-python -m chesstree.cli -i path/to/game.pgn
+python -m chesstree.cli export -i path/to/game.pgn
 ```
