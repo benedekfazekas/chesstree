@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "chesstree"
+version = "0.1.0"
+description = "A command-line tool to convert PGN chess files to JSON or EDN"
+authors = [{ name="Your Name", email="you@example.com" }]
+dependencies = [
+    "chess >= 1.11.2",
+    "typing_extensions >= 4.0; python_version < '3.12'",
+]
+readme = "README.md"
+license = { file="LICENSE" }
+requires-python = ">=3.9"
+
+[project.optional-dependencies]
+dev = [
+    "pytest >= 7.0",
+    "pytest-cov",
+]
+
+[tool.setuptools.packages]
+find = {where = ["."]}
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[project.scripts]
+chesstree = "chesstree.cli:cli"
