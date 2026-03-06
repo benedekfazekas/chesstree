@@ -152,8 +152,8 @@ class TestNags:
             return False
         assert has_good_move(data["moves"]), "No good move (!) NAG found anywhere in variations"
 
-    def test_numeric_nag_without_symbol(self):
-        # 11... Nf6 $10 — NAG 10 has no standard PGN symbol, value should be None
+    def test_numeric_nag_with_symbol(self):
+        # 11... Nf6 $10 — NAG 10 = NAG_DRAWISH_POSITION, now maps to "="
         data = convert(LISPERER)
         nf6 = find_in_main_line(data["moves"], "Nf6", turn="black")
         assert nf6 is not None, "Nf6 (black, move 11) not found in main line"
@@ -161,9 +161,9 @@ class TestNags:
         nag_keys = [list(n.keys())[0] for n in nf6["nags"]]
         # JSON serialises integer dict keys as strings, so 10 → "10"
         assert "10" in nag_keys, f"Expected NAG key '10', got {nag_keys}"
-        # NAG 10 has no symbol mapping → value is None
+        # NAG 10 = NAG_DRAWISH_POSITION → symbol "="
         nag10_entry = next(n for n in nf6["nags"] if list(n.keys())[0] == "10")
-        assert list(nag10_entry.values())[0] is None
+        assert list(nag10_entry.values())[0] == "="
 
     def test_clean_moves_have_no_nags(self):
         # d4 (first move) carries no annotation

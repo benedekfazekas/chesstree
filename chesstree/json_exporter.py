@@ -12,6 +12,26 @@ from chess.pgn import (
     NAG_BLUNDER,
     NAG_SPECULATIVE_MOVE,
     NAG_DUBIOUS_MOVE,
+    NAG_FORCED_MOVE,
+    NAG_DRAWISH_POSITION,
+    NAG_UNCLEAR_POSITION,
+    NAG_WHITE_SLIGHT_ADVANTAGE,
+    NAG_BLACK_SLIGHT_ADVANTAGE,
+    NAG_WHITE_MODERATE_ADVANTAGE,
+    NAG_BLACK_MODERATE_ADVANTAGE,
+    NAG_WHITE_DECISIVE_ADVANTAGE,
+    NAG_BLACK_DECISIVE_ADVANTAGE,
+    NAG_WHITE_ZUGZWANG,
+    NAG_BLACK_ZUGZWANG,
+    NAG_WHITE_MODERATE_COUNTERPLAY,
+    NAG_BLACK_MODERATE_COUNTERPLAY,
+    NAG_WHITE_DECISIVE_COUNTERPLAY,
+    NAG_BLACK_DECISIVE_COUNTERPLAY,
+    NAG_WHITE_MODERATE_TIME_PRESSURE,
+    NAG_BLACK_MODERATE_TIME_PRESSURE,
+    NAG_WHITE_SEVERE_TIME_PRESSURE,
+    NAG_BLACK_SEVERE_TIME_PRESSURE,
+    NAG_NOVELTY,
 )
 from typing import Optional, List, Union
 
@@ -49,12 +69,40 @@ def to_edn(obj: object, str_as_keyword: bool = False) -> str:
 
 
 NAG_TO_PGN_STRING = {
+    # Move assessment ($1–$6) — inline PGN symbols
     NAG_GOOD_MOVE: "!",
     NAG_MISTAKE: "?",
     NAG_BRILLIANT_MOVE: "!!",
     NAG_BLUNDER: "??",
     NAG_SPECULATIVE_MOVE: "!?",
     NAG_DUBIOUS_MOVE: "?!",
+    # $7: forced/only move; $8 and $9 have no standard symbol
+    NAG_FORCED_MOVE: "□",
+    # Position assessment ($10–$19)
+    # $11 (quiet) and $12 (active) have no standard symbol in the PGN spec
+    NAG_DRAWISH_POSITION: "=",       # $10
+    NAG_UNCLEAR_POSITION: "∞",       # $13
+    NAG_WHITE_SLIGHT_ADVANTAGE: "⩲", # $14
+    NAG_BLACK_SLIGHT_ADVANTAGE: "⩱", # $15
+    NAG_WHITE_MODERATE_ADVANTAGE: "±", # $16
+    NAG_BLACK_MODERATE_ADVANTAGE: "∓", # $17
+    NAG_WHITE_DECISIVE_ADVANTAGE: "+-", # $18
+    NAG_BLACK_DECISIVE_ADVANTAGE: "-+", # $19
+    # Zugzwang ($22–$23)
+    NAG_WHITE_ZUGZWANG: "⨀",         # $22
+    NAG_BLACK_ZUGZWANG: "⨀",         # $23
+    # Counterplay ($132–$135): ⇆ explicitly defined for $132; extended to all
+    NAG_WHITE_MODERATE_COUNTERPLAY: "⇆",  # $132
+    NAG_BLACK_MODERATE_COUNTERPLAY: "⇆",  # $133
+    NAG_WHITE_DECISIVE_COUNTERPLAY: "⇆",  # $134
+    NAG_BLACK_DECISIVE_COUNTERPLAY: "⇆",  # $135
+    # Time pressure ($136–$139): ⨁ explicitly defined for $138; extended to all
+    NAG_WHITE_MODERATE_TIME_PRESSURE: "⨁", # $136
+    NAG_BLACK_MODERATE_TIME_PRESSURE: "⨁", # $137
+    NAG_WHITE_SEVERE_TIME_PRESSURE: "⨁",   # $138
+    NAG_BLACK_SEVERE_TIME_PRESSURE: "⨁",   # $139
+    # Novelty
+    NAG_NOVELTY: "N",                # $146
 }
 
 

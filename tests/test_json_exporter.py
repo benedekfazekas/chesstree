@@ -7,7 +7,7 @@ import chess
 import chess.pgn
 import pytest
 
-from chesstree.json_exporter import JsonExporter, to_edn
+from chesstree.json_exporter import JsonExporter, to_edn, NAG_TO_PGN_STRING
 
 SIMPLE_PGN = """\
 [Event "Test Game"]
@@ -155,3 +155,159 @@ class TestToEdn:
     def test_nested(self):
         result = to_edn({"moves": [1, 2]})
         assert result == "{:moves [1 2]}"
+
+
+class TestNagMapping:
+    """Unit tests for the NAG → symbol mapping table."""
+
+    # ------------------------------------------------------------------
+    # Direct mapping table tests
+    # ------------------------------------------------------------------
+
+    def test_move_assessment_symbols(self):
+        from chess.pgn import (
+            NAG_GOOD_MOVE, NAG_MISTAKE, NAG_BRILLIANT_MOVE,
+            NAG_BLUNDER, NAG_SPECULATIVE_MOVE, NAG_DUBIOUS_MOVE,
+        )
+        assert NAG_TO_PGN_STRING[NAG_GOOD_MOVE] == "!"
+        assert NAG_TO_PGN_STRING[NAG_MISTAKE] == "?"
+        assert NAG_TO_PGN_STRING[NAG_BRILLIANT_MOVE] == "!!"
+        assert NAG_TO_PGN_STRING[NAG_BLUNDER] == "??"
+        assert NAG_TO_PGN_STRING[NAG_SPECULATIVE_MOVE] == "!?"
+        assert NAG_TO_PGN_STRING[NAG_DUBIOUS_MOVE] == "?!"
+
+    def test_forced_move_symbol(self):
+        from chess.pgn import NAG_FORCED_MOVE
+        assert NAG_TO_PGN_STRING[NAG_FORCED_MOVE] == "□"
+
+    def test_position_assessment_symbols(self):
+        from chess.pgn import (
+            NAG_DRAWISH_POSITION, NAG_UNCLEAR_POSITION,
+            NAG_WHITE_SLIGHT_ADVANTAGE, NAG_BLACK_SLIGHT_ADVANTAGE,
+            NAG_WHITE_MODERATE_ADVANTAGE, NAG_BLACK_MODERATE_ADVANTAGE,
+            NAG_WHITE_DECISIVE_ADVANTAGE, NAG_BLACK_DECISIVE_ADVANTAGE,
+        )
+        assert NAG_TO_PGN_STRING[NAG_DRAWISH_POSITION] == "="
+        assert NAG_TO_PGN_STRING[NAG_UNCLEAR_POSITION] == "∞"
+        assert NAG_TO_PGN_STRING[NAG_WHITE_SLIGHT_ADVANTAGE] == "⩲"
+        assert NAG_TO_PGN_STRING[NAG_BLACK_SLIGHT_ADVANTAGE] == "⩱"
+        assert NAG_TO_PGN_STRING[NAG_WHITE_MODERATE_ADVANTAGE] == "±"
+        assert NAG_TO_PGN_STRING[NAG_BLACK_MODERATE_ADVANTAGE] == "∓"
+        assert NAG_TO_PGN_STRING[NAG_WHITE_DECISIVE_ADVANTAGE] == "+-"
+        assert NAG_TO_PGN_STRING[NAG_BLACK_DECISIVE_ADVANTAGE] == "-+"
+
+    def test_zugzwang_symbols(self):
+        from chess.pgn import NAG_WHITE_ZUGZWANG, NAG_BLACK_ZUGZWANG
+        assert NAG_TO_PGN_STRING[NAG_WHITE_ZUGZWANG] == "⨀"
+        assert NAG_TO_PGN_STRING[NAG_BLACK_ZUGZWANG] == "⨀"
+
+    def test_counterplay_symbols(self):
+        from chess.pgn import (
+            NAG_WHITE_MODERATE_COUNTERPLAY, NAG_BLACK_MODERATE_COUNTERPLAY,
+            NAG_WHITE_DECISIVE_COUNTERPLAY, NAG_BLACK_DECISIVE_COUNTERPLAY,
+        )
+        assert NAG_TO_PGN_STRING[NAG_WHITE_MODERATE_COUNTERPLAY] == "⇆"
+        assert NAG_TO_PGN_STRING[NAG_BLACK_MODERATE_COUNTERPLAY] == "⇆"
+        assert NAG_TO_PGN_STRING[NAG_WHITE_DECISIVE_COUNTERPLAY] == "⇆"
+        assert NAG_TO_PGN_STRING[NAG_BLACK_DECISIVE_COUNTERPLAY] == "⇆"
+
+    def test_time_pressure_symbols(self):
+        from chess.pgn import (
+            NAG_WHITE_MODERATE_TIME_PRESSURE, NAG_BLACK_MODERATE_TIME_PRESSURE,
+            NAG_WHITE_SEVERE_TIME_PRESSURE, NAG_BLACK_SEVERE_TIME_PRESSURE,
+        )
+        assert NAG_TO_PGN_STRING[NAG_WHITE_MODERATE_TIME_PRESSURE] == "⨁"
+        assert NAG_TO_PGN_STRING[NAG_BLACK_MODERATE_TIME_PRESSURE] == "⨁"
+        assert NAG_TO_PGN_STRING[NAG_WHITE_SEVERE_TIME_PRESSURE] == "⨁"
+        assert NAG_TO_PGN_STRING[NAG_BLACK_SEVERE_TIME_PRESSURE] == "⨁"
+
+    def test_novelty_symbol(self):
+        from chess.pgn import NAG_NOVELTY
+        assert NAG_TO_PGN_STRING[NAG_NOVELTY] == "N"
+
+    def test_nags_without_standard_symbol_return_none(self):
+        from chess.pgn import NAG_SINGULAR_MOVE, NAG_WORST_MOVE, NAG_QUIET_POSITION, NAG_ACTIVE_POSITION
+        # These NAGs are defined by python-chess but have no standard PGN symbol
+        assert NAG_TO_PGN_STRING.get(NAG_SINGULAR_MOVE) is None
+        assert NAG_TO_PGN_STRING.get(NAG_WORST_MOVE) is None
+        assert NAG_TO_PGN_STRING.get(NAG_QUIET_POSITION) is None
+        assert NAG_TO_PGN_STRING.get(NAG_ACTIVE_POSITION) is None
+
+    # ------------------------------------------------------------------
+    # Integration: NAGs surfaced correctly through the full pipeline
+    # ------------------------------------------------------------------
+
+    def _game_with_nag(self, nag: int) -> dict:
+        """Parse a minimal PGN where the first move carries the given NAG."""
+        pgn = f"[Event \"NAG Test\"]\n[Result \"*\"]\n\n1. e4 ${nag} e5 *\n"
+        game = chess.pgn.read_game(io.StringIO(pgn))
+        assert game is not None
+        exporter = JsonExporter()
+        return json.loads(game.accept(exporter))
+
+    def _first_move_nag_symbol(self, nag: int) -> str | None:
+        data = self._game_with_nag(nag)
+        e4 = data["moves"][0]
+        assert "nags" in e4, f"Expected NAG on e4 for NAG {nag}"
+        # JSON round-trip turns int keys to strings
+        entry = next(n for n in e4["nags"] if list(n.keys())[0] == str(nag))
+        return list(entry.values())[0]
+
+    def test_integration_forced_move(self):
+        from chess.pgn import NAG_FORCED_MOVE
+        assert self._first_move_nag_symbol(NAG_FORCED_MOVE) == "□"
+
+    def test_integration_drawish(self):
+        from chess.pgn import NAG_DRAWISH_POSITION
+        assert self._first_move_nag_symbol(NAG_DRAWISH_POSITION) == "="
+
+    def test_integration_unclear(self):
+        from chess.pgn import NAG_UNCLEAR_POSITION
+        assert self._first_move_nag_symbol(NAG_UNCLEAR_POSITION) == "∞"
+
+    def test_integration_white_slight_advantage(self):
+        from chess.pgn import NAG_WHITE_SLIGHT_ADVANTAGE
+        assert self._first_move_nag_symbol(NAG_WHITE_SLIGHT_ADVANTAGE) == "⩲"
+
+    def test_integration_black_slight_advantage(self):
+        from chess.pgn import NAG_BLACK_SLIGHT_ADVANTAGE
+        assert self._first_move_nag_symbol(NAG_BLACK_SLIGHT_ADVANTAGE) == "⩱"
+
+    def test_integration_white_moderate_advantage(self):
+        from chess.pgn import NAG_WHITE_MODERATE_ADVANTAGE
+        assert self._first_move_nag_symbol(NAG_WHITE_MODERATE_ADVANTAGE) == "±"
+
+    def test_integration_black_moderate_advantage(self):
+        from chess.pgn import NAG_BLACK_MODERATE_ADVANTAGE
+        assert self._first_move_nag_symbol(NAG_BLACK_MODERATE_ADVANTAGE) == "∓"
+
+    def test_integration_white_decisive_advantage(self):
+        from chess.pgn import NAG_WHITE_DECISIVE_ADVANTAGE
+        assert self._first_move_nag_symbol(NAG_WHITE_DECISIVE_ADVANTAGE) == "+-"
+
+    def test_integration_black_decisive_advantage(self):
+        from chess.pgn import NAG_BLACK_DECISIVE_ADVANTAGE
+        assert self._first_move_nag_symbol(NAG_BLACK_DECISIVE_ADVANTAGE) == "-+"
+
+    def test_integration_zugzwang(self):
+        from chess.pgn import NAG_WHITE_ZUGZWANG, NAG_BLACK_ZUGZWANG
+        assert self._first_move_nag_symbol(NAG_WHITE_ZUGZWANG) == "⨀"
+        assert self._first_move_nag_symbol(NAG_BLACK_ZUGZWANG) == "⨀"
+
+    def test_integration_counterplay(self):
+        from chess.pgn import NAG_WHITE_MODERATE_COUNTERPLAY, NAG_BLACK_MODERATE_COUNTERPLAY
+        assert self._first_move_nag_symbol(NAG_WHITE_MODERATE_COUNTERPLAY) == "⇆"
+        assert self._first_move_nag_symbol(NAG_BLACK_MODERATE_COUNTERPLAY) == "⇆"
+
+    def test_integration_time_pressure(self):
+        from chess.pgn import NAG_WHITE_SEVERE_TIME_PRESSURE, NAG_BLACK_SEVERE_TIME_PRESSURE
+        assert self._first_move_nag_symbol(NAG_WHITE_SEVERE_TIME_PRESSURE) == "⨁"
+        assert self._first_move_nag_symbol(NAG_BLACK_SEVERE_TIME_PRESSURE) == "⨁"
+
+    def test_integration_novelty(self):
+        from chess.pgn import NAG_NOVELTY
+        assert self._first_move_nag_symbol(NAG_NOVELTY) == "N"
+
+    def test_integration_unknown_nag_symbol_is_none(self):
+        from chess.pgn import NAG_SINGULAR_MOVE
+        assert self._first_move_nag_symbol(NAG_SINGULAR_MOVE) is None
