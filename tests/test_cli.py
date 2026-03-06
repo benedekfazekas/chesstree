@@ -7,7 +7,7 @@ import sys
 import chess.pgn
 import pytest
 
-from chesstree.cli import pgn_to_json, json_to_pgn
+from chesstree.cli import pgn_to_json, json_to_pgn, _detect_input_format
 from chesstree.json_exporter import JsonExporter
 
 SIMPLE_PGN = """\
@@ -129,3 +129,29 @@ class TestJsonToPgn:
         captured = capsys.readouterr()
         assert captured.out == ""
         assert "PGN" in captured.err
+
+
+class TestInputFormatDetection:
+    def test_pgn_extension_detected_as_pgn(self):
+        f = _make_input("", "game.pgn")
+        assert _detect_input_format(f, None) == "pgn"
+
+    def test_json_extension_detected_as_json(self):
+        f = _make_input("", "game.json")
+        assert _detect_input_format(f, None) == "json"
+
+    def test_stdin_defaults_to_pgn(self):
+        f = _make_input("", "<stdin>")
+        assert _detect_input_format(f, None) == "pgn"
+
+    def test_unknown_extension_defaults_to_pgn(self):
+        f = _make_input("", "game.txt")
+        assert _detect_input_format(f, None) == "pgn"
+
+    def test_override_takes_precedence_over_extension(self):
+        f = _make_input("", "game.pgn")
+        assert _detect_input_format(f, "json") == "json"
+
+    def test_override_json_on_non_json_file(self):
+        f = _make_input("", "data.txt")
+        assert _detect_input_format(f, "json") == "json"

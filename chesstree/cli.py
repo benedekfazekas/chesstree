@@ -20,62 +20,54 @@ from chesstree.json_parser import parse_json
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="PGN ↔ JSON/EDN chess game converter")
-    parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
-    subparsers = parser.add_subparsers(dest="command", required=True)
-
-    # --- export: PGN → JSON/EDN ---
-    export_parser = subparsers.add_parser(
-        "export",
-        help="Convert a PGN file to JSON or EDN",
+    parser = argparse.ArgumentParser(
+        description="Convert chess games between PGN, JSON, and EDN formats.",
     )
-    export_parser.add_argument(
+    parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
+    parser.add_argument(
         "-i", "--input",
         type=argparse.FileType("r"),
         required=True,
-        help="The input PGN file to be processed (use '-' for stdin)",
+        help="Input file — PGN or chesstree JSON (use '-' for stdin)",
     )
-    export_parser.add_argument(
+    parser.add_argument(
         "-o", "--output",
         type=argparse.FileType("w"),
         default="-",
-        help="The output file for results (default: stdout)",
+        help="Output file (default: stdout)",
     )
-    export_parser.add_argument(
+    parser.add_argument(
+        "-f", "--format",
+        choices=["json", "edn", "pgn"],
+        default="json",
+        help="Output format: json (default), edn, or pgn",
+    )
+    parser.add_argument(
+        "--input-format",
+        choices=["pgn", "json"],
+        default=None,
+        help="Override auto-detected input format (auto-detected from file extension by default)",
+    )
+    parser.add_argument(
         "-b", "--forblack",
         action="store_true",
-        help="Board images are generated from Black's perspective",
+        help="Board images from Black's perspective (json/edn output only)",
     )
-    export_parser.add_argument(
-        "-e", "--edn",
-        action="store_true",
-        help="Output EDN instead of JSON",
-    )
-    export_parser.add_argument(
+    parser.add_argument(
         "-c", "--concise",
         action="store_true",
-        help="Output compact (non-pretty-printed) JSON/EDN",
+        help="Compact output, no pretty-printing (json/edn output only)",
     )
-
-    # --- import: JSON → PGN ---
-    import_parser = subparsers.add_parser(
-        "import",
-        help="Convert a chesstree JSON file back to PGN",
-    )
-    import_parser.add_argument(
-        "-i", "--input",
-        type=argparse.FileType("r"),
-        required=True,
-        help="The input JSON file produced by 'chesstree export'",
-    )
-    import_parser.add_argument(
-        "-o", "--output",
-        type=argparse.FileType("w"),
-        default="-",
-        help="The output PGN file (default: stdout)",
-    )
-
     return parser.parse_args()
+
+
+def _detect_input_format(input_file: TextIO, override: str | None) -> str:
+    if override:
+        return override
+    name = getattr(input_file, "name", "")
+    if name.endswith(".json"):
+        return "json"
+    return "pgn"
 
 
 def pgn_to_json(
@@ -122,10 +114,23 @@ def json_to_pgn(input_json: TextIO, output_pgn: TextIO) -> None:
 
 def cli() -> None:
     args = parse_args()
-    if args.command == "export":
-        pgn_to_json(args.input, args.output, args.forblack, args.edn, args.concise)
-    elif args.command == "import":
+    input_fmt = _detect_input_format(args.input, args.input_format)
+    output_fmt = args.format
+
+    if input_fmt == "pgn" and output_fmt in ("json", "edn"):
+        pgn_to_json(args.input, args.output,
+                    forblack=args.forblack,
+                    edn=(output_fmt == "edn"),
+                    concise=args.concise)
+    elif input_fmt == "json" and output_fmt == "pgn":
         json_to_pgn(args.input, args.output)
+    else:
+        print(
+            f"Error: unsupported conversion: {input_fmt} → {output_fmt}. "
+            f"Supported: pgn→json, pgn→edn, json→pgn",
+            file=sys.stderr,
+        )
+        sys.exit(1)
 
 
 if __name__ == "__main__":
