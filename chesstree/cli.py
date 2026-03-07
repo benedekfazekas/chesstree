@@ -17,6 +17,7 @@ except ImportError:
 
 from chesstree import json_exporter
 from chesstree.json_parser import parse_json
+from chesstree.dot_exporter import export_dot
 
 
 def parse_args() -> argparse.Namespace:
@@ -38,9 +39,9 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "-f", "--format",
-        choices=["json", "edn", "pgn"],
+        choices=["json", "edn", "pgn", "dot"],
         default="json",
-        help="Output format: json (default), edn, or pgn",
+        help="Output format: json (default), edn, pgn, or dot",
     )
     parser.add_argument(
         "--input-format",
@@ -112,6 +113,27 @@ def json_to_pgn(input_json: TextIO, output_pgn: TextIO) -> None:
     print(f"Conversion to PGN done, written to {output_pgn.name}", file=sys.stderr)
 
 
+def game_to_dot(input_file: TextIO, output_file: TextIO, input_fmt: str) -> None:
+    print(f"Reading {input_file.name} and converting to DOT", file=sys.stderr)
+
+    if input_fmt == "json":
+        try:
+            data = json_mod.load(input_file)
+        except json_mod.JSONDecodeError as exc:
+            print(f"Error: {input_file.name} is not valid JSON: {exc}", file=sys.stderr)
+            sys.exit(1)
+        game = parse_json(data)
+    else:
+        game = chess.pgn.read_game(input_file)
+        if game is None:
+            print(f"Error: no valid PGN game found in {input_file.name}", file=sys.stderr)
+            sys.exit(1)
+
+    dot_str = export_dot(game)
+    print(dot_str, file=output_file)
+    print(f"Conversion to DOT done, written to {output_file.name}", file=sys.stderr)
+
+
 def cli() -> None:
     args = parse_args()
     input_fmt = _detect_input_format(args.input, args.input_format)
@@ -124,10 +146,12 @@ def cli() -> None:
                     concise=args.concise)
     elif input_fmt == "json" and output_fmt == "pgn":
         json_to_pgn(args.input, args.output)
+    elif input_fmt in ("pgn", "json") and output_fmt == "dot":
+        game_to_dot(args.input, args.output, input_fmt)
     else:
         print(
             f"Error: unsupported conversion: {input_fmt} → {output_fmt}. "
-            f"Supported: pgn→json, pgn→edn, json→pgn",
+            f"Supported: pgn→json, pgn→edn, pgn→dot, json→pgn, json→dot",
             file=sys.stderr,
         )
         sys.exit(1)

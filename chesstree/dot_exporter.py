@@ -1,0 +1,371 @@
+from __future__ import annotations
+
+import hashlib
+from typing import Optional
+
+import chess
+import chess.pgn
+from chess.pgn import (
+    NAG_BLUNDER,
+    NAG_BRILLIANT_MOVE,
+    NAG_DUBIOUS_MOVE,
+    NAG_GOOD_MOVE,
+    NAG_MISTAKE,
+    NAG_SPECULATIVE_MOVE,
+)
+
+from chesstree.json_exporter import NAG_TO_PGN_STRING
+
+# Assessment NAGs ordered by priority: most severe first.
+# When a block or branch has multiple NAGs, the most severe wins for coloring.
+_ASSESSMENT_NAGS_PRIORITY = [
+    NAG_BLUNDER,
+    NAG_MISTAKE,
+    NAG_DUBIOUS_MOVE,
+    NAG_SPECULATIVE_MOVE,
+    NAG_GOOD_MOVE,
+    NAG_BRILLIANT_MOVE,
+]
+
+_NAG_COLORS: dict[int, str] = {
+    NAG_BLUNDER: "#cc2200",
+    NAG_MISTAKE: "#e05040",
+    NAG_DUBIOUS_MOVE: "#e08020",
+    NAG_SPECULATIVE_MOVE: "#f4bc4f",
+    NAG_GOOD_MOVE: "#84c043",
+    NAG_BRILLIANT_MOVE: "#66ccff",
+}
+
+
+def _nag_symbol(node: chess.pgn.ChildNode) -> str:
+    """Return the PGN symbol for the most significant assessment NAG on this node."""
+    for nag in _ASSESSMENT_NAGS_PRIORITY:
+        if nag in node.nags:
+            return NAG_TO_PGN_STRING[nag]
+    return ""
+
+
+def _move_color(node: chess.pgn.ChildNode) -> Optional[str]:
+    """Return the highlight color for a move based on its assessment NAG, or None."""
+    for nag in _ASSESSMENT_NAGS_PRIORITY:
+        if nag in node.nags:
+            return _NAG_COLORS[nag]
+    return None
+
+
+def _node_id(fen: str) -> str:
+    """Generate a stable node ID from a FEN string."""
+    return "n" + hashlib.md5(fen.encode()).hexdigest()[:8]
+
+
+def _wrap(text: str, width: int = 40) -> str:
+    """Wrap text at word boundaries, joining lines with <br align="left"/>."""
+    if not text:
+        return text
+    words = text.split(" ")
+    lines: list[str] = []
+    current = ""
+    for word in words:
+        candidate = (current + " " + word).lstrip()
+        if current and len(candidate) > width:
+            lines.append(current)
+            current = word
+        else:
+            current = candidate
+    if current:
+        lines.append(current)
+    return '<br align="left"/>'.join(lines)
+
+
+def _move_num(node: chess.pgn.ChildNode) -> str:
+    return str(node.parent.board().fullmove_number)
+
+
+def _is_white_move(node: chess.pgn.ChildNode) -> bool:
+    return node.parent.board().turn == chess.WHITE
+
+
+class _DotBuilder:
+    """Builds a GraphViz DOT representation of a chess game tree."""
+
+    def __init__(self, game: chess.pgn.Game) -> None:
+        self.game = game
+        self._node_decls: list[str] = []
+        self._edge_decls: list[str] = []
+        self._main_seg_ids: list[str] = []
+
+    def build(self) -> str:
+        root_id = self._render_root_node()
+
+        if self.game.variations:
+            segments = self._collect_main_segments()
+            prev_seg_id: Optional[str] = None
+
+            for seg_nodes, alternatives in segments:
+                seg_id = _node_id(seg_nodes[0].board().fen())
+                self._main_seg_ids.append(seg_id)
+
+                label = self._render_node_label(seg_nodes, is_main=True, has_blunder=False)
+                self._node_decls.append(f"   {seg_id} [label={label}, shape=plaintext] ")
+
+                self._edge_decls.append(f"   {root_id} -> {seg_id} [label=<>] ")
+                if prev_seg_id:
+                    self._edge_decls.append(f"   {prev_seg_id} -> {seg_id} [style=invis] ")
+
+                branching_move = seg_nodes[-1]
+                parent_had_blunder = NAG_BLUNDER in branching_move.nags
+                for alt_node in alternatives:
+                    self._process_variation(alt_node, parent_had_blunder, seg_id)
+
+                prev_seg_id = seg_id
+
+        lines = ["digraph {", "   graph[rankdir=LR]    "]
+        lines.extend(self._node_decls)
+        if self._main_seg_ids:
+            seg_ids_str = "; ".join(self._main_seg_ids)
+            lines.append(f"{{ rank = same; {seg_ids_str}}}")
+        lines.extend(self._edge_decls)
+        lines.append(" }")
+        return "\n".join(lines)
+
+    # ------------------------------------------------------------------
+    # Graph structure helpers
+    # ------------------------------------------------------------------
+
+    def _collect_main_segments(
+        self,
+    ) -> list[tuple[list[chess.pgn.ChildNode], list[chess.pgn.ChildNode]]]:
+        """Split the main line into (segment_nodes, alternatives) pairs.
+
+        A segment ends when a node has >1 variations (branch point). At a
+        branch point the chosen main-line move (variations[0], "the branching
+        move") is added as the LAST node of the segment; alternatives
+        (variations[1:]) spawn variation nodes.
+        """
+        result: list[tuple[list[chess.pgn.ChildNode], list[chess.pgn.ChildNode]]] = []
+        current: list[chess.pgn.ChildNode] = []
+        node: Optional[chess.pgn.ChildNode] = self.game.variations[0]
+
+        while node is not None:
+            current.append(node)
+            n_vars = len(node.variations)
+
+            if n_vars == 0:
+                result.append((current, []))
+                break
+            elif n_vars > 1:
+                # Branch point: include variations[0] (branching move) as the
+                # last node of this segment, then start a new segment.
+                alternatives = list(node.variations[1:])
+                branching_move = node.variations[0]
+                current.append(branching_move)
+                result.append((current, alternatives))
+                current = []
+                if branching_move.variations:
+                    node = branching_move.variations[0]
+                else:
+                    break
+            else:
+                node = node.variations[0]
+
+        return result
+
+    def _collect_variation_moves(
+        self, start_node: chess.pgn.ChildNode
+    ) -> tuple[list[chess.pgn.ChildNode], list[tuple[bool, chess.pgn.ChildNode]]]:
+        """Collect all moves of a variation and note sub-branch points.
+
+        Returns (moves, sub_variations) where sub_variations is a list of
+        (parent_had_blunder, alt_start_node) pairs.
+        """
+        moves: list[chess.pgn.ChildNode] = []
+        sub_variations: list[tuple[bool, chess.pgn.ChildNode]] = []
+        node: Optional[chess.pgn.ChildNode] = start_node
+
+        while node is not None:
+            moves.append(node)
+            n_vars = len(node.variations)
+            if n_vars == 0:
+                break
+            elif n_vars > 1:
+                continuation = node.variations[0]
+                is_blunder = NAG_BLUNDER in continuation.nags
+                for alt in node.variations[1:]:
+                    sub_variations.append((is_blunder, alt))
+                node = continuation
+            else:
+                node = node.variations[0]
+
+        return moves, sub_variations
+
+    def _process_variation(
+        self,
+        start_node: chess.pgn.ChildNode,
+        parent_had_blunder: bool,
+        parent_id: str,
+    ) -> None:
+        """Render a variation node and recursively handle sub-variations."""
+        moves, sub_variations = self._collect_variation_moves(start_node)
+        var_id = _node_id(start_node.board().fen())
+
+        label = self._render_node_label(moves, is_main=False, has_blunder=parent_had_blunder)
+        self._node_decls.append(f"   {var_id} [label={label}, shape=plaintext] ")
+
+        edge_label = self._render_edge_label(start_node)
+        self._edge_decls.append(f"   {parent_id} -> {var_id} [label={edge_label}] ")
+
+        for is_blunder, alt_node in sub_variations:
+            self._process_variation(alt_node, is_blunder, var_id)
+
+    # ------------------------------------------------------------------
+    # Node label rendering
+    # ------------------------------------------------------------------
+
+    def _render_root_node(self) -> str:
+        headers = self.game.headers
+        white = headers.get("White")
+        black = headers.get("Black")
+        date = headers.get("UTCDate") or "null"
+
+        if white and black and white != "?" and black != "?":
+            title = f"{white} vs {black} at {date}"
+        else:
+            event = headers.get("Event", "?")
+            title = f"{event} at {date}"
+
+        event = headers.get("Event", "?")
+        site = headers.get("Site", "?")
+        eco = headers.get("ECO", "?")
+        opening = headers.get("Opening", "?")
+        result = headers.get("Result", "?")
+        body_text = f"{event} {site} opening ({eco}): {opening} Result: {result}"
+
+        wrapped_title = _wrap(title)
+        wrapped_body = _wrap(body_text)
+
+        root_id = _node_id(self.game.board().fen())
+        label = (
+            f"<<table>"
+            f'<tr><td border="0"><b>{wrapped_title}</b></td></tr>'
+            f"<hr/>"
+            f'<tr><td border="0">{wrapped_body}</td></tr>'
+            f"</table>>"
+        )
+        self._node_decls.append(f"   {root_id} [label={label}, shape=plaintext]")
+        return root_id
+
+    def _render_node_label(
+        self,
+        moves: list[chess.pgn.ChildNode],
+        is_main: bool,
+        has_blunder: bool,
+    ) -> str:
+        line_type = "Main" if is_main else "Variation"
+        start = _move_num(moves[0])
+        end = _move_num(moves[-1])
+
+        title = (
+            f"{line_type} line: {start} - {end} moves"
+            if is_main
+            else f"Variation: {start} - {end} moves"
+        )
+        header_colspan = ' colspan="1"' if has_blunder else ""
+        header = (
+            f'<tr><td border="0"{header_colspan}>'
+            f"<b>{title}</b></td></tr>"
+        )
+
+        rows = [header, "<hr/>"]
+        if has_blunder:
+            rows.append('<tr><td border="0" bgcolor="red">blunder</td></tr>')
+            rows.append("<hr/>")
+
+        blocks = self._group_into_blocks(moves)
+        for block_idx, block in enumerate(blocks):
+            move_html = self._format_block_moves(block, first_block=(block_idx == 0))
+            comment = block[-1].comment or ""
+
+            td_attrs = 'border="0"'
+            if block_idx == 0 and has_blunder:
+                td_attrs += ' colspan="1"'
+
+            prefix = "moves:" if block_idx == 0 else ""
+            wrapped_comment = _wrap(comment) if comment else ""
+
+            content = f"&#160;<b>{prefix}{move_html}</b>&#160;{wrapped_comment}"
+            rows.append(f"<tr><td {td_attrs}>{content}</td></tr>")
+
+        rows.append('<tr><td border="0"></td></tr>')
+
+        inner = "".join(rows)
+        return f"<<table>{inner}</table>>"
+
+    def _group_into_blocks(
+        self, moves: list[chess.pgn.ChildNode]
+    ) -> list[list[chess.pgn.ChildNode]]:
+        """Group moves into blocks, ending each block at a commented move."""
+        blocks: list[list[chess.pgn.ChildNode]] = []
+        current: list[chess.pgn.ChildNode] = []
+        for node in moves:
+            current.append(node)
+            if node.comment:
+                blocks.append(current)
+                current = []
+        if current:
+            blocks.append(current)
+        return blocks
+
+    def _format_block_moves(self, block: list[chess.pgn.ChildNode], first_block: bool) -> str:
+        """Format the SAN move text for a block of moves as an HTML fragment.
+
+        Rules:
+        - White moves: always show move number.
+        - Black move at the start of any block (i == 0): show number with ".." prefix
+          so the reader knows which move number they are looking at after a comment break.
+        - Black move as a continuation within a block (i > 0): no number.
+        - Moves with an assessment NAG are wrapped in <font color="..."> tags.
+        """
+        parts: list[str] = []
+        for i, node in enumerate(block):
+            white = _is_white_move(node)
+            num = _move_num(node)
+            san = node.parent.board().san(node.move)
+            nag = _nag_symbol(node)
+            color = _move_color(node)
+
+            if white:
+                move_str = f"{num}. {san}{nag}"
+            elif i == 0:
+                move_str = f"{num}. .. {san}{nag}"
+            else:
+                move_str = f"{san}{nag}"
+
+            if color:
+                move_str = f'<font color="{color}">{move_str}</font>'
+
+            parts.append(move_str)
+
+        return " ".join(parts)
+
+    def _render_edge_label(self, node: chess.pgn.ChildNode) -> str:
+        """Format the label for an edge pointing to a variation start."""
+        white = _is_white_move(node)
+        num = _move_num(node)
+        san = node.parent.board().san(node.move)
+        nag = _nag_symbol(node)
+        comment = node.comment or ""
+
+        move_text = f"{num}. {san}" if white else f"{num}. .. {san}"
+
+        parts = [f"&#160;<b>{move_text}</b>&#160;"]
+        if nag:
+            parts.append(f"&#160;<b>{nag}</b>&#160;")
+        if comment:
+            parts.append(_wrap(comment))
+
+        return "<" + "".join(parts) + ">"
+
+
+def export_dot(game: chess.pgn.Game) -> str:
+    """Export a chess game to a GraphViz DOT string."""
+    return _DotBuilder(game).build()

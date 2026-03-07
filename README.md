@@ -1,6 +1,6 @@
 # chesstree
 
-A command-line tool for converting chess games between PGN, JSON, and EDN. It accepts PGN or chesstree JSON as input (auto-detected from the file extension) and can output JSON, EDN, or PGN via the `-f`/`--format` flag. JSON output includes move number, SAN and UCI notation, FEN position, SVG board images, comments, NAGs, and variations.
+A command-line tool for converting chess games between PGN, JSON, EDN, and GraphViz DOT formats. It accepts PGN or chesstree JSON as input (auto-detected from the file extension) and can output JSON, EDN, PGN, or DOT via the `-f`/`--format` flag. JSON output includes move number, SAN and UCI notation, FEN position, SVG board images, comments, NAGs, and variations. DOT output models the game tree as a left-to-right digraph suitable for rendering with GraphViz tools.
 
 ## Output format
 
@@ -69,18 +69,18 @@ The `chesstree` command is available whenever the virtual environment is active.
 ## Usage
 
 ```
-usage: chesstree [-h] [--version] -i INPUT [-o OUTPUT] [-f {json,edn,pgn}]
+usage: chesstree [-h] [--version] -i INPUT [-o OUTPUT] [-f {json,edn,pgn,dot}]
                  [--input-format {pgn,json}] [-b] [-c]
 
 options:
-  -h, --help                   show this help message and exit
-  --version                    show program's version number and exit
-  -i, --input INPUT            Input file — PGN or chesstree JSON (use '-' for stdin)
-  -o, --output OUTPUT          Output file (default: stdout)
-  -f, --format {json,edn,pgn}  Output format: json (default), edn, or pgn
-  --input-format {pgn,json}    Override auto-detected input format
-  -b, --forblack               Board images from Black's perspective (json/edn output only)
-  -c, --concise                Compact output, no pretty-printing (json/edn output only)
+  -h, --help                        show this help message and exit
+  --version                         show program's version number and exit
+  -i, --input INPUT                 Input file — PGN or chesstree JSON (use '-' for stdin)
+  -o, --output OUTPUT               Output file (default: stdout)
+  -f, --format {json,edn,pgn,dot}   Output format: json (default), edn, pgn, or dot
+  --input-format {pgn,json}         Override auto-detected input format
+  -b, --forblack                    Board images from Black's perspective (json/edn output only)
+  -c, --concise                     Compact output, no pretty-printing (json/edn output only)
 ```
 
 The input format is auto-detected from the file extension (`.pgn` → PGN, `.json` → chesstree JSON). Use `--input-format` to override this when reading from stdin or a file with an unusual extension.
@@ -91,7 +91,9 @@ Supported conversions:
 |-------|-------------------|--------|
 | PGN   | `json` (default)  | chesstree JSON |
 | PGN   | `edn`             | chesstree EDN  |
+| PGN   | `dot`             | GraphViz DOT   |
 | JSON  | `pgn`             | PGN            |
+| JSON  | `dot`             | GraphViz DOT   |
 
 ### Examples
 
@@ -123,6 +125,24 @@ Convert a chesstree JSON file back to PGN:
 
 ```bash
 chesstree -i game.json -f pgn -o game_restored.pgn
+```
+
+Export a PGN game to a GraphViz DOT file for visualisation:
+
+```bash
+chesstree -i game.pgn -f dot -o game.dot
+```
+
+Render the DOT file to SVG using GraphViz:
+
+```bash
+dot -Tsvg game.dot -o game.svg
+```
+
+Export from chesstree JSON to DOT:
+
+```bash
+chesstree -i game.json -f dot -o game.dot
 ```
 
 Round-trip a game through JSON:
