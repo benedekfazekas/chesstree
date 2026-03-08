@@ -105,7 +105,7 @@ class _DotBuilder:
                 seg_id = _node_id(seg_nodes[0].board().fen())
                 self._main_seg_ids.append(seg_id)
 
-                label = self._render_node_label(seg_nodes, is_main=True, has_blunder=False)
+                label = self._render_node_label(seg_nodes, is_main=True)
                 self._node_decls.append(f"   {seg_id} [label={label}, shape=plaintext] ")
 
                 self._edge_decls.append(f"   {root_id} -> {seg_id} [label=<>] ")
@@ -113,9 +113,8 @@ class _DotBuilder:
                     self._edge_decls.append(f"   {prev_seg_id} -> {seg_id} [style=invis] ")
 
                 branching_move = seg_nodes[-1]
-                parent_had_blunder = NAG_BLUNDER in branching_move.nags
                 for alt_node in alternatives:
-                    self._process_variation(alt_node, parent_had_blunder, seg_id)
+                    self._process_variation(alt_node, seg_id)
 
                 prev_seg_id = seg_id
 
@@ -172,14 +171,13 @@ class _DotBuilder:
 
     def _collect_variation_moves(
         self, start_node: chess.pgn.ChildNode
-    ) -> tuple[list[chess.pgn.ChildNode], list[tuple[bool, chess.pgn.ChildNode]]]:
-        """Collect all moves of a variation and note sub-branch points.
+    ) -> tuple[list[chess.pgn.ChildNode], list[chess.pgn.ChildNode]]:
+        """Collect all moves of a variation and note sub-branch alternative starts.
 
-        Returns (moves, sub_variations) where sub_variations is a list of
-        (parent_had_blunder, alt_start_node) pairs.
+        Returns (moves, sub_variation_starts).
         """
         moves: list[chess.pgn.ChildNode] = []
-        sub_variations: list[tuple[bool, chess.pgn.ChildNode]] = []
+        sub_variations: list[chess.pgn.ChildNode] = []
         node: Optional[chess.pgn.ChildNode] = start_node
 
         while node is not None:
@@ -189,9 +187,8 @@ class _DotBuilder:
                 break
             elif n_vars > 1:
                 continuation = node.variations[0]
-                is_blunder = NAG_BLUNDER in continuation.nags
                 for alt in node.variations[1:]:
-                    sub_variations.append((is_blunder, alt))
+                    sub_variations.append(alt)
                 node = continuation
             else:
                 node = node.variations[0]
@@ -201,21 +198,20 @@ class _DotBuilder:
     def _process_variation(
         self,
         start_node: chess.pgn.ChildNode,
-        parent_had_blunder: bool,
         parent_id: str,
     ) -> None:
         """Render a variation node and recursively handle sub-variations."""
         moves, sub_variations = self._collect_variation_moves(start_node)
         var_id = _node_id(start_node.board().fen())
 
-        label = self._render_node_label(moves, is_main=False, has_blunder=parent_had_blunder)
+        label = self._render_node_label(moves, is_main=False)
         self._node_decls.append(f"   {var_id} [label={label}, shape=plaintext] ")
 
         edge_label = self._render_edge_label(start_node)
         self._edge_decls.append(f"   {parent_id} -> {var_id} [label={edge_label}] ")
 
-        for is_blunder, alt_node in sub_variations:
-            self._process_variation(alt_node, is_blunder, var_id)
+        for alt_node in sub_variations:
+            self._process_variation(alt_node, var_id)
 
     # ------------------------------------------------------------------
     # Node label rendering
@@ -258,7 +254,6 @@ class _DotBuilder:
         self,
         moves: list[chess.pgn.ChildNode],
         is_main: bool,
-        has_blunder: bool,
     ) -> str:
         line_type = "Main" if is_main else "Variation"
         start = _move_num(moves[0])
@@ -269,31 +264,20 @@ class _DotBuilder:
             if is_main
             else f"Variation: {start} - {end} moves"
         )
-        header_colspan = ' colspan="1"' if has_blunder else ""
-        header = (
-            f'<tr><td border="0"{header_colspan}>'
-            f"<b>{title}</b></td></tr>"
-        )
+        header = f'<tr><td border="0"><b>{title}</b></td></tr>'
 
         rows = [header, "<hr/>"]
-        if has_blunder:
-            rows.append('<tr><td border="0" bgcolor="red">blunder</td></tr>')
-            rows.append("<hr/>")
 
         blocks = self._group_into_blocks(moves)
         for block_idx, block in enumerate(blocks):
             move_html = self._format_block_moves(block, first_block=(block_idx == 0))
             comment = block[-1].comment or ""
 
-            td_attrs = 'border="0"'
-            if block_idx == 0 and has_blunder:
-                td_attrs += ' colspan="1"'
-
             prefix = "moves:" if block_idx == 0 else ""
             wrapped_comment = _wrap(comment) if comment else ""
 
             content = f"&#160;<b>{prefix}{move_html}</b>&#160;{wrapped_comment}"
-            rows.append(f"<tr><td {td_attrs}>{content}</td></tr>")
+            rows.append(f'<tr><td border="0">{content}</td></tr>')
 
         rows.append('<tr><td border="0"></td></tr>')
 
@@ -332,16 +316,14 @@ class _DotBuilder:
             san = node.parent.board().san(node.move)
             nag = _nag_symbol(node)
             color = _move_color(node)
+            san_nag = f'<font color="{color}">{san}{nag}</font>' if color else f"{san}{nag}"
 
             if white:
-                move_str = f"{num}. {san}{nag}"
+                move_str = f"{num}. {san_nag}"
             elif i == 0:
-                move_str = f"{num}. .. {san}{nag}"
+                move_str = f"{num}. .. {san_nag}"
             else:
-                move_str = f"{san}{nag}"
-
-            if color:
-                move_str = f'<font color="{color}">{move_str}</font>'
+                move_str = san_nag
 
             parts.append(move_str)
 

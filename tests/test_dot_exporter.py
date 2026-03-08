@@ -118,8 +118,7 @@ class TestFormatBlockMoves:
         node = game.variations[0]
         node.nags = {NAG_MISTAKE}
         result = self._fmt([node], first_block=True)
-        assert "e4?" in result
-        assert '<font color="#e05040">1. e4?</font>' == result
+        assert result == '1. <font color="#e05040">e4?</font>'
 
     def test_white_always_shows_number(self):
         game = _load_pgn_str("[Result '*']\n1. e4 e5 2. Nf3 *")
@@ -225,16 +224,6 @@ class TestDotFunctional:
         dot = self._dot(LISPERER)
         variations = re.findall(r"Variation: \d+ - \d+ moves", dot)
         assert len(variations) >= 5
-
-    def test_blunder_row_present(self):
-        dot = self._dot(LISPERER)
-        assert 'bgcolor="red"' in dot
-        assert ">blunder<" in dot
-
-    def test_blunder_row_has_header_colspan(self):
-        dot = self._dot(LISPERER)
-        # Blunder nodes have colspan="1" on their header cell
-        assert 'colspan="1"' in dot
 
     def test_nags_in_move_text(self):
         dot = self._dot(LISPERER)
