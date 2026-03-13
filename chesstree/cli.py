@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json as json_mod
+import pathlib
 import chess
 import sys
 from typing import TextIO
@@ -53,7 +54,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "-b", "--forblack",
         action="store_true",
-        help="Board images from Black's perspective (json/edn output only)",
+        help="Board images from Black's perspective (json/edn/dot output)",
     )
     parser.add_argument(
         "--images",
@@ -62,9 +63,11 @@ def parse_args() -> argparse.Namespace:
         default=["variations"],
         metavar="MODE",
         help=(
-            "Image generation mode for json/edn output (default: variations). "
+            "Image generation mode (default: variations). "
             "Choices: none, all, variations, commented. "
-            "'variations' and 'commented' may be combined."
+            "'variations' and 'commented' may be combined. "
+            "For dot output, SVG files are written alongside the .dot file; "
+            "stdout output includes image references but does not write SVG files."
         ),
     )
     parser.add_argument(
@@ -131,7 +134,13 @@ def json_to_pgn(input_json: TextIO, output_pgn: TextIO) -> None:
     print(f"Conversion to PGN done, written to {output_pgn.name}", file=sys.stderr)
 
 
-def game_to_dot(input_file: TextIO, output_file: TextIO, input_fmt: str) -> None:
+def game_to_dot(
+    input_file: TextIO,
+    output_file: TextIO,
+    input_fmt: str,
+    images: list | None = None,
+    forblack: bool = False,
+) -> None:
     print(f"Reading {input_file.name} and converting to DOT", file=sys.stderr)
 
     if input_fmt == "json":
@@ -147,8 +156,20 @@ def game_to_dot(input_file: TextIO, output_file: TextIO, input_fmt: str) -> None
             print(f"Error: no valid PGN game found in {input_file.name}", file=sys.stderr)
             sys.exit(1)
 
-    dot_str = export_dot(game)
+    modes = frozenset(images or ["variations"])
+    dot_str, images_dict = export_dot(game, image_modes=modes, board_img_for_black=forblack)
     print(dot_str, file=output_file)
+
+    is_stdout = getattr(output_file, "name", "<stdout>") == "<stdout>"
+    if not is_stdout and images_dict:
+        output_dir = pathlib.Path(output_file.name).parent
+        for filename, svg_content in images_dict.items():
+            (output_dir / filename).write_text(svg_content)
+        print(
+            f"Written {len(images_dict)} SVG image(s) to {output_dir}",
+            file=sys.stderr,
+        )
+
     print(f"Conversion to DOT done, written to {output_file.name}", file=sys.stderr)
 
 
@@ -166,7 +187,7 @@ def cli() -> None:
     elif input_fmt == "json" and output_fmt == "pgn":
         json_to_pgn(args.input, args.output)
     elif input_fmt in ("pgn", "json") and output_fmt == "dot":
-        game_to_dot(args.input, args.output, input_fmt)
+        game_to_dot(args.input, args.output, input_fmt, images=args.images, forblack=args.forblack)
     else:
         print(
             f"Error: unsupported conversion: {input_fmt} → {output_fmt}. "

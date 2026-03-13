@@ -190,8 +190,12 @@ class TestGroupIntoBlocks:
 
 
 class TestDotFunctional:
-    def _dot(self, path: pathlib.Path) -> str:
-        return export_dot(_load(path))
+    def _dot(self, path: pathlib.Path, **kwargs) -> str:
+        dot, _ = export_dot(_load(path), **kwargs)
+        return dot
+
+    def _dot_and_images(self, path: pathlib.Path, **kwargs) -> tuple[str, dict]:
+        return export_dot(_load(path), **kwargs)
 
     def test_output_is_valid_digraph(self):
         for path in [HILLBILLY, CARO_KANN, LISPERER]:
@@ -280,3 +284,65 @@ class TestDotFunctional:
         dot = self._dot(CARO_KANN)
         segs = re.findall(r"Main line: \d+ - \d+ moves", dot)
         assert len(segs) >= 4
+
+
+class TestDotImages:
+    """Tests for image generation in DOT output."""
+
+    def test_none_mode_returns_empty_images(self):
+        dot, images = export_dot(_load(LISPERER), image_modes=frozenset(["none"]))
+        assert images == {}
+        assert "IMG" not in dot
+
+    def test_empty_modes_returns_no_images(self):
+        dot, images = export_dot(_load(LISPERER), image_modes=frozenset())
+        assert images == {}
+        assert "IMG" not in dot
+
+    def test_all_mode_returns_images(self):
+        dot, images = export_dot(_load(LISPERER), image_modes=frozenset(["all"]))
+        assert len(images) > 0
+        for filename in images:
+            assert filename.endswith(".svg")
+            assert filename.startswith("n")
+
+    def test_variations_mode_returns_images(self):
+        dot, images = export_dot(_load(LISPERER), image_modes=frozenset(["variations"]))
+        assert len(images) > 0
+
+    def test_all_mode_produces_img_rows_in_dot(self):
+        dot, images = export_dot(_load(LISPERER), image_modes=frozenset(["all"]))
+        assert "<IMG" in dot
+        assert "fixedsize" in dot
+
+    def test_image_filenames_referenced_in_dot(self):
+        dot, images = export_dot(_load(LISPERER), image_modes=frozenset(["variations"]))
+        for filename in images:
+            assert filename in dot
+
+    def test_svg_content_is_valid_svg(self):
+        _, images = export_dot(_load(LISPERER), image_modes=frozenset(["variations"]))
+        for content in images.values():
+            assert content.startswith("<svg") or "<?xml" in content
+
+    def test_all_mode_more_images_than_variations(self):
+        _, images_all = export_dot(_load(LISPERER), image_modes=frozenset(["all"]))
+        _, images_var = export_dot(_load(LISPERER), image_modes=frozenset(["variations"]))
+        assert len(images_all) >= len(images_var)
+
+    def test_commented_mode_returns_images_for_commented_blocks(self):
+        dot, images = export_dot(_load(LISPERER), image_modes=frozenset(["commented"]))
+        # lisperer has comments; should produce at least one image
+        assert len(images) > 0
+
+    def test_variations_and_commented_combined(self):
+        _, images_var = export_dot(_load(LISPERER), image_modes=frozenset(["variations"]))
+        _, images_comb = export_dot(
+            _load(LISPERER), image_modes=frozenset(["variations", "commented"])
+        )
+        assert len(images_comb) >= len(images_var)
+
+    def test_image_filenames_are_stable(self):
+        _, images1 = export_dot(_load(LISPERER), image_modes=frozenset(["all"]))
+        _, images2 = export_dot(_load(LISPERER), image_modes=frozenset(["all"]))
+        assert set(images1.keys()) == set(images2.keys())

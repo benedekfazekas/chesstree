@@ -78,10 +78,12 @@ options:
   -o, --output OUTPUT               Output file (default: stdout)
   -f, --format {json,edn,pgn,dot}   Output format: json (default), edn, pgn, or dot
   --input-format {pgn,json}         Override auto-detected input format
-  -b, --forblack                    Board images from Black's perspective (json/edn output only)
-  --images MODE [MODE ...]          Image generation mode (json/edn only, default: variations)
+  -b, --forblack                    Board images from Black's perspective (json/edn/dot output)
+  --images MODE [MODE ...]          Image generation mode (default: variations)
                                     Choices: none, all, variations, commented.
                                     'variations' and 'commented' may be combined.
+                                    For dot output, SVG files are written alongside the .dot file;
+                                    stdout output includes image references but skips writing SVGs.
   -c, --concise                     Compact output, no pretty-printing (json/edn output only)
 ```
 
@@ -125,7 +127,7 @@ chesstree -i game.pgn -o game.json -b
 
 ### Board image modes
 
-The `--images` flag controls which moves carry a `board_img_after` SVG in the JSON/EDN output. The following modes are available:
+The `--images` flag controls which moves carry a board image in JSON/EDN output and which segment nodes carry an SVG image row in DOT output. The following modes are available:
 
 | Mode | Description |
 |------|-------------|
@@ -197,6 +199,31 @@ Export from chesstree JSON to DOT:
 
 ```bash
 chesstree -i game.json -f dot -o game.dot
+```
+
+### DOT output and board images
+
+The `--images` flag applies to DOT output as well as JSON/EDN. When writing to a file,
+`chesstree` generates SVG board images and saves them **in the same directory** as the `.dot` file.
+GraphViz then loads the images by path when rendering the DOT:
+
+```bash
+# Write game.dot and all SVG images into ./output/
+chesstree -i game.pgn -f dot --images variations commented -o output/game.dot
+dot -Tsvg output/game.dot -o output/game.svg
+```
+
+When writing to **stdout** (or with `-o -`), image references are included in the DOT syntax
+but no SVG files are written — useful for piping the DOT string while skipping heavy image generation:
+
+```bash
+chesstree -i game.pgn -f dot -o - | dot -Tsvg -o game.svg   # no SVGs written
+```
+
+To omit images entirely from DOT output:
+
+```bash
+chesstree -i game.pgn -f dot --images none -o game.dot
 ```
 
 Round-trip a game through JSON:

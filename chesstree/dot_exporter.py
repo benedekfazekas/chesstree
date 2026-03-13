@@ -5,6 +5,7 @@ from typing import Optional
 
 import chess
 import chess.pgn
+import chess.svg
 from chess.pgn import (
     NAG_BLUNDER,
     NAG_BRILLIANT_MOVE,
@@ -88,13 +89,21 @@ def _is_white_move(node: chess.pgn.ChildNode) -> bool:
 class _DotBuilder:
     """Builds a GraphViz DOT representation of a chess game tree."""
 
-    def __init__(self, game: chess.pgn.Game) -> None:
+    def __init__(
+        self,
+        game: chess.pgn.Game,
+        image_modes: frozenset[str] = frozenset(["variations"]),
+        board_img_for_black: bool = False,
+    ) -> None:
         self.game = game
+        self.image_modes = image_modes
+        self.orientation = chess.BLACK if board_img_for_black else chess.WHITE
         self._node_decls: list[str] = []
         self._edge_decls: list[str] = []
         self._main_seg_ids: list[str] = []
+        self._images: dict[str, str] = {}  # filename → SVG content
 
-    def build(self) -> str:
+    def build(self) -> tuple[str, dict[str, str]]:
         root_id = self._render_root_node()
 
         if self.game.variations:
@@ -125,7 +134,7 @@ class _DotBuilder:
             lines.append(f"{{ rank = same; {seg_ids_str}}}")
         lines.extend(self._edge_decls)
         lines.append(" }")
-        return "\n".join(lines)
+        return "\n".join(lines), self._images
 
     # ------------------------------------------------------------------
     # Graph structure helpers
@@ -269,6 +278,7 @@ class _DotBuilder:
         rows = [header, "<hr/>"]
 
         blocks = self._group_into_blocks(moves)
+        total_blocks = len(blocks)
         for block_idx, block in enumerate(blocks):
             move_html = self._format_block_moves(block, first_block=(block_idx == 0))
             comment = block[-1].comment or ""
@@ -279,10 +289,45 @@ class _DotBuilder:
             content = f"&#160;<b>{prefix}{move_html}</b>&#160;{wrapped_comment}"
             rows.append(f'<tr><td border="0">{content}</td></tr>')
 
+            if self._block_needs_image(block_idx, total_blocks, block):
+                img_filename = self._ensure_image(block[-1])
+                rows.append(
+                    f'<tr><td href="./{img_filename}" border="0" fixedsize="TRUE"'
+                    f' height="100" width="100"><IMG src="./{img_filename}"/></td></tr>'
+                )
+
         rows.append('<tr><td border="0"></td></tr>')
 
         inner = "".join(rows)
         return f"<<table>{inner}</table>>"
+
+    def _block_needs_image(
+        self,
+        block_idx: int,
+        total_blocks: int,
+        block: list[chess.pgn.ChildNode],
+    ) -> bool:
+        if not self.image_modes or "none" in self.image_modes:
+            return False
+        if "all" in self.image_modes:
+            return True
+        needs = False
+        if "variations" in self.image_modes and block_idx == total_blocks - 1:
+            needs = True
+        if "commented" in self.image_modes and block[-1].comment:
+            needs = True
+        return needs
+
+    def _ensure_image(self, node: chess.pgn.ChildNode) -> str:
+        """Return filename for the board image after this node, generating SVG if needed."""
+        board = node.board()
+        filename = _node_id(board.fen()) + ".svg"
+        if filename not in self._images:
+            self._images[filename] = chess.svg.board(
+                board, size=250, orientation=self.orientation
+            )
+        return filename
+
 
     def _group_into_blocks(
         self, moves: list[chess.pgn.ChildNode]
@@ -348,6 +393,14 @@ class _DotBuilder:
         return "<" + "".join(parts) + ">"
 
 
-def export_dot(game: chess.pgn.Game) -> str:
-    """Export a chess game to a GraphViz DOT string."""
-    return _DotBuilder(game).build()
+def export_dot(
+    game: chess.pgn.Game,
+    image_modes: frozenset[str] = frozenset(["variations"]),
+    board_img_for_black: bool = False,
+) -> tuple[str, dict[str, str]]:
+    """Export a chess game to a GraphViz DOT string plus a dict of image files.
+
+    Returns a tuple of (dot_string, images) where images maps filename to SVG
+    content. The images dict is empty when image_modes is empty or {"none"}.
+    """
+    return _DotBuilder(game, image_modes, board_img_for_black).build()
