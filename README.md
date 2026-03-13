@@ -16,7 +16,6 @@ The tool produces a JSON (or EDN) object with three top-level keys:
       "san": "e4",
       "uci": "e2e4",
       "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
-      "board_img_before": "<svg ...>",
       "board_img_after":  "<svg ...>"
     },
     ...
@@ -70,7 +69,7 @@ The `chesstree` command is available whenever the virtual environment is active.
 
 ```
 usage: chesstree [-h] [--version] -i INPUT [-o OUTPUT] [-f {json,edn,pgn,dot}]
-                 [--input-format {pgn,json}] [-b] [-c]
+                 [--input-format {pgn,json}] [-b] [--images MODE [MODE ...]] [-c]
 
 options:
   -h, --help                        show this help message and exit
@@ -80,6 +79,9 @@ options:
   -f, --format {json,edn,pgn,dot}   Output format: json (default), edn, pgn, or dot
   --input-format {pgn,json}         Override auto-detected input format
   -b, --forblack                    Board images from Black's perspective (json/edn output only)
+  --images MODE [MODE ...]          Image generation mode (json/edn only, default: variations)
+                                    Choices: none, all, variations, commented.
+                                    'variations' and 'commented' may be combined.
   -c, --concise                     Compact output, no pretty-printing (json/edn output only)
 ```
 
@@ -119,6 +121,58 @@ Generate board images from Black's perspective:
 
 ```bash
 chesstree -i game.pgn -o game.json -b
+```
+
+### Board image modes
+
+The `--images` flag controls which moves carry a `board_img_after` SVG in the JSON/EDN output. The following modes are available:
+
+| Mode | Description |
+|------|-------------|
+| `variations` | *(default)* Images at the last move of each line segment — see below |
+| `all` | Every move gets an image |
+| `commented` | Only moves that carry a comment get an image |
+| `none` | No images at all (smallest output) |
+
+`variations` and `commented` can be combined: `--images variations commented`.
+
+#### The `variations` mode in detail
+
+A chess game tree is naturally divided into **segments** — runs of moves along a single line until the game ends or the tree branches. The `variations` mode places one image at the **last move of each segment**:
+
+- **End of a line** (no further moves) — the final move of the main line or of any variation always gets an image.
+- **Branch point** — when a position has multiple continuations (e.g. a main move and one or more alternative variations), the first continuation (the main-line choice at that fork) is the last move of the current segment and gets an image. The alternatives each start their own segment and follow the same rule recursively.
+
+This means images appear at the moments of decision — exactly where a reader is most likely to want to visualise the board — while keeping the output compact compared to `all`.
+
+Generate images only at variation endpoints (default):
+
+```bash
+chesstree -i game.pgn -o game.json --images variations
+```
+
+Generate images for every move:
+
+```bash
+chesstree -i game.pgn -o game.json --images all
+```
+
+Generate images only at commented moves:
+
+```bash
+chesstree -i game.pgn -o game.json --images commented
+```
+
+Generate images at both variation endpoints and commented moves:
+
+```bash
+chesstree -i game.pgn -o game.json --images variations commented
+```
+
+Omit all board images:
+
+```bash
+chesstree -i game.pgn -o game.json --images none
 ```
 
 Convert a chesstree JSON file back to PGN:

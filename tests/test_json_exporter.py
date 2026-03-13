@@ -7,7 +7,7 @@ import chess
 import chess.pgn
 import pytest
 
-from chesstree.json_exporter import JsonExporter, to_edn, NAG_TO_PGN_STRING
+from chesstree.json_exporter import JsonExporter, to_edn, NAG_TO_PGN_STRING, collect_image_fens
 
 SIMPLE_PGN = """\
 [Event "Test Game"]
@@ -74,7 +74,6 @@ class TestJsonExporter:
         assert first_move["move_number"] == 1
         assert "fen" in first_move
         assert "uci" in first_move
-        assert "board_img_before" in first_move
         assert "board_img_after" in first_move
 
     def test_result(self):
@@ -311,3 +310,75 @@ class TestNagMapping:
     def test_integration_unknown_nag_symbol_is_none(self):
         from chess.pgn import NAG_SINGULAR_MOVE
         assert self._first_move_nag_symbol(NAG_SINGULAR_MOVE) is None
+
+
+# ---------------------------------------------------------------------------
+# collect_image_fens
+# ---------------------------------------------------------------------------
+
+def _load_pgn(pgn: str) -> chess.pgn.Game:
+    return chess.pgn.read_game(io.StringIO(pgn))
+
+BRANCH_PGN = """\
+[Result "*"]
+
+1. e4 e5 (1... c5 2. Nf3) 2. Nf3 *
+"""
+
+COMMENT_PGN = """\
+[Result "*"]
+
+1. e4 { good opening } e5 2. Nf3 *
+"""
+
+
+class TestCollectImageFens:
+    def test_none_mode_returns_empty_set(self):
+        game = _load_pgn(SIMPLE_PGN)
+        result = collect_image_fens(game, frozenset(["none"]))
+        assert result == set()
+
+    def test_all_mode_returns_none(self):
+        game = _load_pgn(SIMPLE_PGN)
+        result = collect_image_fens(game, frozenset(["all"]))
+        assert result is None
+
+    def test_variations_mode_includes_last_move(self):
+        game = _load_pgn(SIMPLE_PGN)
+        fens = collect_image_fens(game, frozenset(["variations"]))
+        # Last move of the 5-move game must be in the set
+        node = game.variations[0]
+        while node.variations:
+            node = node.variations[0]
+        assert node.board().fen() in fens
+
+    def test_variations_mode_includes_branch_point(self):
+        game = _load_pgn(BRANCH_PGN)
+        fens = collect_image_fens(game, frozenset(["variations"]))
+        # At 1. e4 there is a branch (1... e5 main, 1... c5 variation).
+        # Image goes on the branching move (e5 = e4_node.variations[0]), not on e4 itself.
+        e4_node = game.variations[0]
+        e5_node = e4_node.variations[0]
+        assert e5_node.board().fen() in fens
+        assert e4_node.board().fen() not in fens
+
+    def test_variations_mode_not_all_moves(self):
+        game = _load_pgn(SIMPLE_PGN)
+        fens = collect_image_fens(game, frozenset(["variations"]))
+        total_moves = sum(1 for _ in game.mainline())
+        assert len(fens) < total_moves
+
+    def test_commented_mode_only_commented_fens(self):
+        game = _load_pgn(COMMENT_PGN)
+        fens = collect_image_fens(game, frozenset(["commented"]))
+        # Only 1. e4 has a comment → only its FEN should be in the set
+        e4_node = game.variations[0]
+        assert e4_node.board().fen() in fens
+        e5_node = e4_node.variations[0]
+        assert e5_node.board().fen() not in fens
+
+    def test_combined_variations_and_commented(self):
+        game = _load_pgn(COMMENT_PGN)
+        fens_vars = collect_image_fens(game, frozenset(["variations"]))
+        fens_both = collect_image_fens(game, frozenset(["variations", "commented"]))
+        assert fens_both >= fens_vars

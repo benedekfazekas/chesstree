@@ -16,6 +16,7 @@ except ImportError:
     __version__ = "unknown"
 
 from chesstree import json_exporter
+from chesstree.json_exporter import collect_image_fens
 from chesstree.json_parser import parse_json
 from chesstree.dot_exporter import export_dot
 
@@ -55,6 +56,18 @@ def parse_args() -> argparse.Namespace:
         help="Board images from Black's perspective (json/edn output only)",
     )
     parser.add_argument(
+        "--images",
+        nargs="+",
+        choices=["none", "all", "variations", "commented"],
+        default=["variations"],
+        metavar="MODE",
+        help=(
+            "Image generation mode for json/edn output (default: variations). "
+            "Choices: none, all, variations, commented. "
+            "'variations' and 'commented' may be combined."
+        ),
+    )
+    parser.add_argument(
         "-c", "--concise",
         action="store_true",
         help="Compact output, no pretty-printing (json/edn output only)",
@@ -77,6 +90,7 @@ def pgn_to_json(
     forblack: bool,
     edn: bool,
     concise: bool = False,
+    images: list | None = None,
 ) -> None:
     extension = "edn" if edn else "json"
     print(f"Reading {input_pgn.name} and converting to {extension}", file=sys.stderr)
@@ -86,6 +100,9 @@ def pgn_to_json(
         print(f"Error: no valid PGN game found in {input_pgn.name}", file=sys.stderr)
         sys.exit(1)
 
+    modes = frozenset(images or ["variations"])
+    image_fens = collect_image_fens(parsed_game, modes)
+
     exporter = json_exporter.JsonExporter(
         headers=True,
         variations=True,
@@ -93,6 +110,7 @@ def pgn_to_json(
         edn=edn,
         board_img_for_black=forblack,
         concise=concise,
+        image_fens=image_fens,
     )
     game_json_edn = parsed_game.accept(exporter)
     print(game_json_edn, file=output_json, end="\n\n")
@@ -143,7 +161,8 @@ def cli() -> None:
         pgn_to_json(args.input, args.output,
                     forblack=args.forblack,
                     edn=(output_fmt == "edn"),
-                    concise=args.concise)
+                    concise=args.concise,
+                    images=args.images)
     elif input_fmt == "json" and output_fmt == "pgn":
         json_to_pgn(args.input, args.output)
     elif input_fmt in ("pgn", "json") and output_fmt == "dot":

@@ -33,7 +33,7 @@ from chess.pgn import (
     NAG_BLACK_SEVERE_TIME_PRESSURE,
     NAG_NOVELTY,
 )
-from typing import Optional, List, Union
+from typing import Optional, List, Union, FrozenSet
 
 try:
     from typing import override
@@ -116,6 +116,7 @@ class JsonExporter(BaseVisitor[str]):
         edn: bool = False,
         concise: bool = False,
         board_img_for_black: bool = False,
+        image_fens: Optional[set] = None,
     ):
         self.headers_flag = headers
         self.comments_flag = comments
@@ -123,6 +124,8 @@ class JsonExporter(BaseVisitor[str]):
         self.edn_flag = edn
         self.board_img_for_black_flag = board_img_for_black
         self.indent = None if concise else 2
+        # None → all moves get images; set → only matching FENs (empty set = no images)
+        self.image_fens = image_fens
 
         self.reset_game()
 
@@ -177,6 +180,7 @@ class JsonExporter(BaseVisitor[str]):
     def visit_move(self, board: chess.Board, move: chess.Move) -> None:
         board_after = board.copy()
         board_after.push(move)
+        fen_after = board_after.fen()
         orientation = chess.BLACK if self.board_img_for_black_flag else chess.WHITE
         move_entry = {
             "move_number": board.fullmove_number,
@@ -184,9 +188,11 @@ class JsonExporter(BaseVisitor[str]):
             "san": board.san(move),
             "uci": move.uci(),
             "fen": board.fen(),
-            "board_img_before": chess.svg.board(board, size=250, orientation=orientation).replace('"', '\\"'),
-            "board_img_after": chess.svg.board(board_after, size=250, orientation=orientation).replace('"', '\\"'),
         }
+        if self.image_fens is None or fen_after in self.image_fens:
+            move_entry["board_img_after"] = chess.svg.board(
+                board_after, size=250, orientation=orientation
+            ).replace('"', '\\"')
         self.current_variation.append(move_entry)
 
     def visit_result(self, result: str) -> None:
@@ -203,3 +209,41 @@ class JsonExporter(BaseVisitor[str]):
 
     def __str__(self) -> str:
         return self.result()
+
+
+def _collect_image_fens_recursive(
+    node: chess.pgn.GameNode,
+    modes: FrozenSet[str],
+    fens: set,
+) -> None:
+    for child in node.variations:
+        fen = child.board().fen()
+        if "commented" in modes and child.comment:
+            fens.add(fen)
+        if "variations" in modes:
+            if not child.variations:
+                # End of line — image on the last move
+                fens.add(fen)
+            elif len(child.variations) > 1:
+                # Branch point — image on the branching move (variations[0]),
+                # which is the last move of this segment (mirrors DOT exporter logic)
+                fens.add(child.variations[0].board().fen())
+        _collect_image_fens_recursive(child, modes, fens)
+
+
+def collect_image_fens(
+    game: chess.pgn.Game, modes: FrozenSet[str]
+) -> Optional[set]:
+    """Return the set of after-move FENs that should carry a board image.
+
+    Returns None  → all moves get images (``all`` mode).
+    Returns set() → no moves get images (``none`` mode).
+    Returns a non-empty set for ``variations`` / ``commented`` modes.
+    """
+    if "none" in modes:
+        return set()
+    if "all" in modes:
+        return None
+    fens: set = set()
+    _collect_image_fens_recursive(game, frozenset(modes), fens)
+    return fens
