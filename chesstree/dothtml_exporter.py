@@ -70,10 +70,26 @@ def export_dothtml(
 
     title = _game_title(game)
     add_images = _build_add_images(images)
+    safe_dot = _escape_js_template_literal(dot_str)
 
     html = template
     html = html.replace(PLACEHOLDER_TITLE, title)
     html = html.replace(PLACEHOLDER_IMAGES, add_images)
-    html = html.replace(PLACEHOLDER_DOT, dot_str)
+    html = html.replace(PLACEHOLDER_DOT, safe_dot)
 
     return html, images
+
+
+def _escape_js_template_literal(s: str) -> str:
+    """Escape a string for safe embedding inside a JS backtick template literal.
+
+    Prevents content in the DOT string (e.g. from PGN comments or player names)
+    from breaking out of the ``var dot = `...`;`` block and injecting JS.
+
+    Escape order: backslash first (to avoid double-escaping), then backtick,
+    then ``${`` (template expression opener).
+    """
+    s = s.replace("\\", "\\\\")
+    s = s.replace("`", "\\`")
+    s = s.replace("${", "\\${")
+    return s

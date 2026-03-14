@@ -13,6 +13,7 @@ from chesstree.dothtml_exporter import (
     PLACEHOLDER_TITLE,
     _DEFAULT_TEMPLATE,
     _build_add_images,
+    _escape_js_template_literal,
     _game_title,
     export_dothtml,
 )
@@ -167,3 +168,45 @@ class TestExportDothtml:
         html, _ = export_dothtml(_load(LISPERER), board_img_for_black=True,
                                  image_modes=frozenset(["variations"]))
         assert "digraph {" in html
+
+
+# ---------------------------------------------------------------------------
+# JS template literal escaping
+# ---------------------------------------------------------------------------
+
+
+class TestEscapeJsTemplateLiteral:
+    def test_backtick_escaped(self):
+        assert _escape_js_template_literal("a`b") == "a\\`b"
+
+    def test_backslash_escaped(self):
+        assert _escape_js_template_literal("a\\b") == "a\\\\b"
+
+    def test_template_expression_escaped(self):
+        assert _escape_js_template_literal("${evil}") == "\\${evil}"
+
+    def test_backslash_before_backtick_no_double_escape(self):
+        # a\`b → a\\`b (backslash escaped first, then backtick)
+        assert _escape_js_template_literal("a\\`b") == "a\\\\\\`b"
+
+    def test_plain_text_unchanged(self):
+        assert _escape_js_template_literal("hello world") == "hello world"
+
+    def test_empty_string(self):
+        assert _escape_js_template_literal("") == ""
+
+    def test_dot_string_injected_safely(self):
+        """A crafted DOT string with backticks cannot break out of the JS literal."""
+        import io
+        import chess.pgn
+        # Craft a PGN with a comment that tries to break out of a JS backtick string
+        pgn = (
+            '[Event "Test"]\n[White "?"]\n[Black "?"]\n\n'
+            '1. e4 { `; alert("xss"); var x = ` } 1-0'
+        )
+        game = chess.pgn.read_game(io.StringIO(pgn))
+        html, _ = export_dothtml(game, image_modes=frozenset(["none"]))
+        # The raw injection sequence must not appear unescaped
+        assert '`; alert("xss"); var x = `' not in html
+        # But the escaped version should be present
+        assert "\\`" in html
