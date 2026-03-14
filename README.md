@@ -1,6 +1,6 @@
 # chesstree
 
-A command-line tool for converting chess games between PGN, JSON, EDN, and GraphViz DOT formats. It accepts PGN or chesstree JSON as input (auto-detected from the file extension) and can output JSON, EDN, PGN, or DOT via the `-f`/`--format` flag. JSON output includes move number, SAN and UCI notation, FEN position, SVG board images, comments, NAGs, and variations. DOT output models the game tree as a left-to-right digraph suitable for rendering with GraphViz tools.
+A command-line tool for converting chess games between PGN, JSON, EDN, GraphViz DOT, and interactive HTML formats. It accepts PGN or chesstree JSON as input (auto-detected from the file extension) and can output JSON, EDN, PGN, DOT, or dothtml via the `-f`/`--format` flag. JSON output includes move number, SAN and UCI notation, FEN position, SVG board images, comments, NAGs, and variations. DOT output models the game tree as a left-to-right digraph suitable for rendering with GraphViz tools. The dothtml format wraps the DOT graph in a self-contained browser viewer powered by [d3-graphviz](https://github.com/magjac/d3-graphviz), with pan, zoom, and board images included.
 
 ## Output format
 
@@ -320,3 +320,8 @@ Alternatively, you can invoke the module directly without installing:
 ```bash
 python -m chesstree.cli -i path/to/game.pgn
 ```
+
+## AI assisted development
+
+The project is developed in a supervised AI development manner where I try to keep a close eye on design choices, read and review the generated code, test the output manually etc.
+
