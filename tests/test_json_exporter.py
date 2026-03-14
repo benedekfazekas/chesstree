@@ -125,6 +125,66 @@ class TestJsonExporter:
         result2 = game2.accept(exporter)
         assert json.loads(result1) == json.loads(result2)
 
+    def test_game_comment_in_headers(self):
+        pgn = """\
+[Event "Test"]
+[White "A"]
+[Black "B"]
+[Result "*"]
+
+{ This is the game intro. } 1. e4 e5 *
+"""
+        game = _parse_game(pgn)
+        data = json.loads(game.accept(JsonExporter()))
+        assert data["headers"]["Comment"] == "This is the game intro."
+
+    def test_game_comment_absent_when_none(self):
+        game = _parse_game(SIMPLE_PGN)
+        data = json.loads(game.accept(JsonExporter()))
+        assert "Comment" not in data["headers"]
+
+    def test_game_comment_strips_pgn_annotations(self):
+        pgn = """\
+[Event "Test"]
+[White "A"]
+[Black "B"]
+[Result "*"]
+
+{ [%clk 0:05:00] Real intro text. } 1. e4 *
+"""
+        game = _parse_game(pgn)
+        data = json.loads(game.accept(JsonExporter()))
+        # The full raw comment (including [%clk]) is stored as-is for JSON
+        assert "Real intro text." in data["headers"]["Comment"]
+
+    def test_game_comment_clk_only_still_stored(self):
+        """A clock-only game comment is still stored (no filtering at JSON level)."""
+        pgn = """\
+[Event "Test"]
+[White "A"]
+[Black "B"]
+[Result "*"]
+
+{ [%clk 0:05:00] } 1. e4 *
+"""
+        game = _parse_game(pgn)
+        data = json.loads(game.accept(JsonExporter()))
+        # A pure annotation with no text: stored raw
+        assert "Comment" in data["headers"]
+
+    def test_game_comment_excluded_when_comments_false(self):
+        pgn = """\
+[Event "Test"]
+[White "A"]
+[Black "B"]
+[Result "*"]
+
+{ Intro. } 1. e4 *
+"""
+        game = _parse_game(pgn)
+        data = json.loads(game.accept(JsonExporter(comments=False)))
+        assert "Comment" not in data["headers"]
+
 
 class TestToEdn:
     def test_dict(self):

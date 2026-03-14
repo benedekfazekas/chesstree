@@ -18,12 +18,14 @@ import pytest
 from chesstree.cli import pgn_to_json
 from chesstree.json_exporter import JsonExporter
 from chesstree.json_parser import parse_json
+from chesstree.dot_exporter import export_dot
 
 SAMPLE_PGNS = pathlib.Path(__file__).parent / "sample_pgns"
 
 HILLBILLY = SAMPLE_PGNS / "hillbilly_v3.pgn"
 CARO_KANN = SAMPLE_PGNS / "lichess_study_caro-kann-exchange-sample3.pgn"
 LISPERER  = SAMPLE_PGNS / "lisperer_vs_verenitach.pgn"
+GERGESHAIN = SAMPLE_PGNS / "gergeshain-vs-lisperer.pgn"
 
 
 # ---------------------------------------------------------------------------
@@ -314,3 +316,101 @@ class TestRoundTrip:
         # Lichess study: covers multiple variation branches and prose comments
         pgn1, pgn2 = _roundtrip(CARO_KANN)
         assert pgn1 == pgn2
+
+
+# ---------------------------------------------------------------------------
+# Clock-annotated game: gergeshain-vs-lisperer
+# Tests game comment extraction and clock-annotation filtering.
+# ---------------------------------------------------------------------------
+
+def _load_game(pgn_path: pathlib.Path) -> chess.pgn.Game:
+    with open(pgn_path) as f:
+        game = chess.pgn.read_game(f)
+    assert game is not None
+    return game
+
+
+class TestGergeshainLisperer:
+    """Functional tests for a real blitz game with [%clk] on every move and a game comment."""
+
+    # -- JSON / EDN output ---------------------------------------------------
+
+    def test_game_comment_captured_in_headers(self):
+        data = convert(GERGESHAIN)
+        assert "Comment" in data["headers"], "Game comment should be stored in headers['Comment']"
+        assert "opening mistake" in data["headers"]["Comment"]
+
+    def test_clock_tags_absent_from_move_comments(self):
+        """[%clk ...] tags must not appear in move comments."""
+        data = convert(GERGESHAIN)
+        for move in iter_moves(data["moves"]):
+            for c in move.get("comments", []):
+                assert "[%clk" not in c, f"[%clk] leaked into comments of move {move['san']}: {c!r}"
+
+    def test_commented_mode_no_image_on_clock_only_moves(self):
+        """Moves annotated only with [%clk] must NOT trigger a board image in 'commented' mode."""
+        data = convert(GERGESHAIN, images=["commented"])
+        # e4 is the very first move; its only annotation is [%clk 0:05:00]
+        e4 = find_in_main_line(data["moves"], "e4", turn="white")
+        assert e4 is not None, "e4 not found in main line"
+        assert "board_img_after" not in e4, "e4 (clock-only annotation) should not have a board image"
+
+    def test_commented_mode_image_on_real_comment_moves(self):
+        """Moves with genuine human commentary DO get a board image in 'commented' mode."""
+        data = convert(GERGESHAIN, images=["commented"])
+        # 20... Rhg8 has the comment "was trying to find counterplay desperately"
+        rhg8 = find_in_main_line(data["moves"], "Rhg8", turn="black")
+        assert rhg8 is not None, "Rhg8 not found in main line"
+        assert "board_img_after" in rhg8, "Rhg8 (has real comment) should have a board image"
+
+    def test_fewer_commented_images_than_all(self):
+        data_all = convert(GERGESHAIN, images=["all"])
+        data_commented = convert(GERGESHAIN, images=["commented"])
+        all_count = sum(1 for m in iter_moves(data_all["moves"]) if "board_img_after" in m)
+        commented_count = sum(1 for m in iter_moves(data_commented["moves"]) if "board_img_after" in m)
+        assert commented_count < all_count, (
+            f"commented mode ({commented_count}) should produce fewer images than all mode ({all_count})"
+        )
+
+    def test_real_comments_present_on_annotated_moves(self):
+        """Moves with real prose commentary must have a 'comments' field."""
+        data = convert(GERGESHAIN)
+        # 22... Ne7 has "moving the king away would have been better..."
+        ne7 = find_in_main_line(data["moves"], "Ne7", turn="black")
+        assert ne7 is not None, "Ne7 not found in main line"
+        assert "comments" in ne7, "Ne7 should carry a human comment"
+        assert any("moving the king away" in c for c in ne7["comments"])
+
+    def test_clock_only_moves_have_no_comments(self):
+        """Moves whose only annotation is [%clk] must have no 'comments' entry."""
+        data = convert(GERGESHAIN)
+        # c6 (1... c6) has only [%clk 0:05:00]
+        c6 = find_in_main_line(data["moves"], "c6", turn="black")
+        assert c6 is not None, "c6 not found in main line"
+        assert "comments" not in c6, "c6 (clock-only) should not have a comments entry"
+
+    # -- DOT output ----------------------------------------------------------
+
+    def test_dot_root_node_contains_game_comment(self):
+        game = _load_game(GERGESHAIN)
+        dot, _ = export_dot(game)
+        assert "opening mistake" in dot, "DOT root node should contain the game comment text"
+
+    def test_dot_root_node_game_comment_is_italic(self):
+        game = _load_game(GERGESHAIN)
+        dot, _ = export_dot(game)
+        assert "<i>" in dot, "Game comment should be wrapped in <i> tags in the DOT root node"
+
+    def test_dot_output_no_clk_annotations(self):
+        """[%clk] text must never appear in the DOT output."""
+        game = _load_game(GERGESHAIN)
+        dot, _ = export_dot(game)
+        assert "[%clk" not in dot, "[%clk] annotation leaked into DOT output"
+
+    def test_dot_commented_mode_fewer_images_than_all(self):
+        game = _load_game(GERGESHAIN)
+        _, images_all = export_dot(game, image_modes=frozenset(["all"]))
+        _, images_commented = export_dot(game, image_modes=frozenset(["commented"]))
+        assert len(images_commented) < len(images_all), (
+            f"commented mode ({len(images_commented)}) should produce fewer DOT SVGs than all mode ({len(images_all)})"
+        )

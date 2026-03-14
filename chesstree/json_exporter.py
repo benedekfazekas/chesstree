@@ -35,6 +35,8 @@ from chess.pgn import (
 )
 from typing import Optional, List, Union, FrozenSet
 
+from chesstree.utils import has_real_comment, _PGN_COMMAND_ANNOTATION_RE
+
 try:
     from typing import override
 except ImportError:
@@ -165,8 +167,21 @@ class JsonExporter(BaseVisitor[str]):
             self.current_variation = self.variation_stack.pop()
 
     def visit_comment(self, comment: Union[str, List[str]]) -> None:
-        if self.comments_flag and self.current_variation:
-            comments = _standardize_comments(comment)
+        if not self.comments_flag:
+            return
+        if not self.current_variation:
+            # Comment before the first move — this is the game-level comment.
+            texts = _standardize_comments(comment)
+            text = " ".join(t for t in texts if t)
+            if text:
+                self.game_data["headers"]["Comment"] = text
+            return
+        comments = [
+            _PGN_COMMAND_ANNOTATION_RE.sub("", c).strip()
+            for c in _standardize_comments(comment)
+        ]
+        comments = [c for c in comments if c]
+        if comments:
             if "comments" not in self.current_variation[-1]:
                 self.current_variation[-1]["comments"] = []
             self.current_variation[-1]["comments"].extend(comments)
@@ -218,7 +233,7 @@ def _collect_image_fens_recursive(
 ) -> None:
     for child in node.variations:
         fen = child.board().fen()
-        if "commented" in modes and child.comment:
+        if "commented" in modes and has_real_comment(child.comment):
             fens.add(fen)
         if "variations" in modes:
             if not child.variations:

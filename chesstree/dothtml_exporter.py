@@ -1,19 +1,27 @@
 from __future__ import annotations
 
 import pathlib
+from importlib.resources import files as _pkg_files
 from typing import Optional
 
 import chess.pgn
 
 from chesstree.dot_exporter import export_dot
 
-_DEFAULT_TEMPLATE = pathlib.Path(__file__).parent / "templates" / "dothtml_default.html"
-
 PLACEHOLDER_TITLE = "{{CHESSTREE_TITLE}}"
 PLACEHOLDER_IMAGES = "{{CHESSTREE_IMAGES}}"
 PLACEHOLDER_DOT = "{{CHESSTREE_DOT}}"
 
 _REQUIRED_PLACEHOLDERS = (PLACEHOLDER_TITLE, PLACEHOLDER_IMAGES, PLACEHOLDER_DOT)
+
+
+def _read_default_template() -> str:
+    """Read the built-in template using importlib.resources (works when installed)."""
+    return (
+        _pkg_files("chesstree.templates")
+        .joinpath("dothtml_default.html")
+        .read_text(encoding="utf-8")
+    )
 
 
 def _game_title(game: chess.pgn.Game) -> str:
@@ -59,13 +67,17 @@ def export_dothtml(
     """
     dot_str, images = export_dot(game, image_modes=image_modes, board_img_for_black=board_img_for_black)
 
-    path = template_path or _DEFAULT_TEMPLATE
-    template = path.read_text(encoding="utf-8")
+    if template_path is not None:
+        template = template_path.read_text(encoding="utf-8")
+        template_label = str(template_path)
+    else:
+        template = _read_default_template()
+        template_label = "built-in dothtml_default.html"
 
     missing = [p for p in _REQUIRED_PLACEHOLDERS if p not in template]
     if missing:
         raise ValueError(
-            f"Template {path} is missing required placeholder(s): {', '.join(missing)}"
+            f"Template '{template_label}' is missing required placeholder(s): {', '.join(missing)}"
         )
 
     title = _game_title(game)

@@ -11,10 +11,10 @@ from chesstree.dothtml_exporter import (
     PLACEHOLDER_DOT,
     PLACEHOLDER_IMAGES,
     PLACEHOLDER_TITLE,
-    _DEFAULT_TEMPLATE,
     _build_add_images,
     _escape_js_template_literal,
     _game_title,
+    _read_default_template,
     export_dothtml,
 )
 
@@ -73,11 +73,12 @@ class TestBuildAddImages:
 
 
 class TestDefaultTemplate:
-    def test_template_exists(self):
-        assert _DEFAULT_TEMPLATE.exists()
+    def test_template_is_readable(self):
+        content = _read_default_template()
+        assert len(content) > 0
 
     def test_template_has_all_placeholders(self):
-        content = _DEFAULT_TEMPLATE.read_text()
+        content = _read_default_template()
         assert PLACEHOLDER_TITLE in content
         assert PLACEHOLDER_IMAGES in content
         assert PLACEHOLDER_DOT in content

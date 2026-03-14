@@ -16,6 +16,7 @@ from chess.pgn import (
 )
 
 from chesstree.json_exporter import NAG_TO_PGN_STRING
+from chesstree.utils import has_real_comment, _PGN_COMMAND_ANNOTATION_RE
 
 # Assessment NAGs ordered by priority: most severe first.
 # When a block or branch has multiple NAGs, the most severe wins for coloring.
@@ -248,12 +249,20 @@ class _DotBuilder:
         wrapped_title = _wrap(title)
         wrapped_body = _wrap(body_text)
 
+        game_comment = _PGN_COMMAND_ANNOTATION_RE.sub("", self.game.comment or "").strip()
+
         root_id = _node_id(self.game.board().fen())
+        comment_row = (
+            f'<tr><td border="0"><i>{_wrap(game_comment)}</i></td></tr>'
+            if game_comment
+            else ""
+        )
         label = (
             f"<<table>"
             f'<tr><td border="0"><b>{wrapped_title}</b></td></tr>'
             f"<hr/>"
             f'<tr><td border="0">{wrapped_body}</td></tr>'
+            f"{comment_row}"
             f"</table>>"
         )
         self._node_decls.append(f"   {root_id} [label={label}, shape=plaintext]")
@@ -281,7 +290,8 @@ class _DotBuilder:
         total_blocks = len(blocks)
         for block_idx, block in enumerate(blocks):
             move_html = self._format_block_moves(block, first_block=(block_idx == 0))
-            comment = block[-1].comment or ""
+            comment_raw = block[-1].comment or ""
+            comment = _PGN_COMMAND_ANNOTATION_RE.sub("", comment_raw).strip()
 
             prefix = "moves:" if block_idx == 0 else ""
             wrapped_comment = _wrap(comment) if comment else ""
@@ -314,7 +324,7 @@ class _DotBuilder:
         needs = False
         if "variations" in self.image_modes and block_idx == total_blocks - 1:
             needs = True
-        if "commented" in self.image_modes and block[-1].comment:
+        if "commented" in self.image_modes and has_real_comment(block[-1].comment):
             needs = True
         return needs
 
@@ -332,12 +342,16 @@ class _DotBuilder:
     def _group_into_blocks(
         self, moves: list[chess.pgn.ChildNode]
     ) -> list[list[chess.pgn.ChildNode]]:
-        """Group moves into blocks, ending each block at a commented move."""
+        """Group moves into blocks, ending each block at a move with real human commentary.
+
+        PGN command annotations such as ``[%clk ...]`` are not considered real
+        comments and do not cause a block break.
+        """
         blocks: list[list[chess.pgn.ChildNode]] = []
         current: list[chess.pgn.ChildNode] = []
         for node in moves:
             current.append(node)
-            if node.comment:
+            if has_real_comment(node.comment):
                 blocks.append(current)
                 current = []
         if current:
@@ -380,7 +394,7 @@ class _DotBuilder:
         num = _move_num(node)
         san = node.parent.board().san(node.move)
         nag = _nag_symbol(node)
-        comment = node.comment or ""
+        comment = _PGN_COMMAND_ANNOTATION_RE.sub("", node.comment or "").strip()
 
         move_text = f"{num}. {san}" if white else f"{num}. .. {san}"
 

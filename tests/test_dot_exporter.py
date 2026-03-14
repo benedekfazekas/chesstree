@@ -219,6 +219,56 @@ class TestDotFunctional:
         dot = self._dot(HILLBILLY)
         assert "caro-kann, hillbilly: hillbilly" in dot
 
+    def test_root_node_game_comment_in_italic(self):
+        pgn = """\
+[Event "Test"]
+[White "Alice"]
+[Black "Bob"]
+[Result "*"]
+
+{ This is the game intro. } 1. e4 e5 *
+"""
+        dot, _ = export_dot(_load_pgn_str(pgn))
+        assert "<i>" in dot
+        assert "This is the game intro." in dot
+
+    def test_root_node_no_game_comment_no_italic(self):
+        pgn = """\
+[Event "Test"]
+[White "Alice"]
+[Black "Bob"]
+[Result "*"]
+
+1. e4 e5 *
+"""
+        dot, _ = export_dot(_load_pgn_str(pgn))
+        assert "<i>" not in dot
+
+    def test_root_node_game_comment_strips_clk(self):
+        pgn = """\
+[Event "Test"]
+[White "Alice"]
+[Black "Bob"]
+[Result "*"]
+
+{ [%clk 0:05:00] Opening commentary. } 1. e4 *
+"""
+        dot, _ = export_dot(_load_pgn_str(pgn))
+        assert "Opening commentary." in dot
+        assert "%clk" not in dot
+
+    def test_root_node_clk_only_comment_not_shown(self):
+        pgn = """\
+[Event "Test"]
+[White "Alice"]
+[Black "Bob"]
+[Result "*"]
+
+{ [%clk 0:05:00] } 1. e4 *
+"""
+        dot, _ = export_dot(_load_pgn_str(pgn))
+        assert "<i>" not in dot
+
     def test_main_segments_present(self):
         dot = self._dot(LISPERER)
         segments = re.findall(r"Main line: \d+ - \d+ moves", dot)

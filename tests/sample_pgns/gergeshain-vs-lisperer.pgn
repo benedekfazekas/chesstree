@@ -1,0 +1,24 @@
+[Event "rated blitz game"]
+[Site "https://lichess.org/Pqn09tQ5"]
+[Date "2026.03.13"]
+[Round "-"]
+[White "gergeshanin"]
+[Black "lisperer"]
+[Result "1-0"]
+[WhiteElo "1450"]
+[BlackElo "1466"]
+[TimeControl "300+3"]
+[Termination "Normal"]
+[GameId "Pqn09tQ5"]
+[Variant "Standard"]
+[ECO "B12"]
+[Opening "Caro-Kann Defense: Advance Variation, Botvinnik-Carls Defense"]
+[StudyName "lisperer and wozzed games"]
+[ChapterName "gergeshanin vs lisperer"]
+[ChapterURL "https://lichess.org/study/xaNmrk0p/WqEAcSbe"]
+[Annotator "https://lichess.org/@/lisperer"]
+
+{ a game where I made an opening mistake and never recovered. 5. g3 was surprising and altho I had the right idea with eventualy Bf5 I was less prepared for what to do with the bishop on f5 than with the Bg4 lines }
+1. e4 { [%clk 0:05:00] } 1... c6 { [%clk 0:05:00] } 2. d4 { [%clk 0:05:01] } 2... d5 { [%clk 0:05:02] } 3. e5 { [%clk 0:04:58] } 3... c5 { [%clk 0:05:04] } 4. c3 { [%clk 0:04:59] } 4... Nc6 { [%clk 0:05:05] } 5. g3 { [%clk 0:05:00] } 5... cxd4 { [%clk 0:04:53] } 6. cxd4 { [%clk 0:04:59] } 6... Bf5 { [%clk 0:04:47] } 7. Bg2 { [%clk 0:05:00] } 7... e6 { [%clk 0:04:40] } (7... Qa5+ { is an option here }) 8. Nc3 { [%clk 0:05:01] } 8... Nge7 { [%clk 0:04:31] } (8... Nb4 { is direct and obviously much better } 9. Kf1) 9. Nge2 { [%clk 0:04:56] } 9... Bg4 { [%clk 0:04:27] } 10. O-O { [%clk 0:04:52] } 10... Nf5?? { [%clk 0:04:16] } (10... h5 { prepares refuge for the bishopon h7 }) 11. f3 { [%clk 0:04:44] } 11... Bh5 { [%clk 0:03:28] } 12. g4 { [%clk 0:04:45] } 12... Nh4 { [%clk 0:03:27] } (12... Bxg4 13. fxg4 Nh4 { would have been the more logical }) 13. gxh5 { [%clk 0:04:44] } 13... Nxg2 { [%clk 0:03:29] } 14. Kxg2 { [%clk 0:04:45] } 14... h6 { [%clk 0:03:16] } 15. Ng3 { [%clk 0:04:32] } 15... Be7 { [%clk 0:02:54] } 16. Nb5 { [%clk 0:04:31] } 16... a6 { [%clk 0:02:50] } 17. Nd6+ { [%clk 0:04:26] } 17... Bxd6 { [%clk 0:02:52] } 18. exd6 { [%clk 0:04:26] } 18... Qxd6 { [%clk 0:02:54] } 19. f4 { [%clk 0:04:23] } 19... Kd7 { [%clk 0:02:46] } 20. f5 { [%clk 0:04:24] } 20... Rhg8 { was trying to find counterplay desperately } { [%clk 0:02:18] } 21. fxe6+ { [%clk 0:04:11] } 21... fxe6 { [%clk 0:02:20] } 22. Rf7+ { [%clk 0:04:11] } 22... Ne7 { moving the king away would have been better, does not matter much at this point } { [%clk 0:02:03] } 23. Qa4+ { [%clk 0:04:04] } 23... Kc7 { [%clk 0:01:39] } 24. Bf4 { 1-0 Black resigns. } { [%clk 0:04:02] } 1-0
+
+

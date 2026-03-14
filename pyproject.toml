@@ -24,6 +24,9 @@ dev = [
 [tool.setuptools.packages]
 find = {where = ["."]}
 
+[tool.setuptools.package-data]
+"chesstree.templates" = ["*.html"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 
