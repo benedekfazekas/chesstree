@@ -35,9 +35,12 @@ There is no separate lint or build step. All tests must pass before committing.
 Run `python -m pytest tests/ -q` after every code change. All tests must pass before proceeding.
 Never commit or hand off with a failing test suite.
 
-### Regenerate HTML samples after relevant changes
-When changes affect DOT or dothtml output (exporter logic, template, image modes), regenerate the
-sample HTML files in `/tmp/chesstree.samples/`. Each game gets a subdirectory with three HTMLs:
+### Regenerate HTML samples only when explicitly asked
+Only regenerate the sample HTML files in `/tmp/chesstree.samples/` when the user explicitly
+requests it, or when a change significantly alters the visual output (e.g. a new layout feature,
+template redesign). Do **not** regenerate for small bug fixes or refactors.
+
+When regeneration is needed, each game gets a subdirectory with three HTMLs:
 
 | Filename | Image modes |
 |----------|-------------|
@@ -56,7 +59,7 @@ For non-trivial features: analyse the codebase, propose a plan, confirm with the
 implementing. Save the plan to the session state `plan.md`. Break the plan into SQL-tracked todos.
 
 ### Git commits
-- Title + one sentence body only
+- Title + one sentence body (or a short bullet list for multi-fix commits)
 - Do **not** mention Copilot or AI in the message
 - Stage files first; the user controls what is staged
 
@@ -91,6 +94,7 @@ implementing. Save the plan to the session state `plan.md`. Break the plan into 
 | `json_parser.py` | chesstree JSON → `chess.pgn.Game` |
 | `dot_exporter.py` | `chess.pgn.Game` → DOT string + `{filename: svg}` dict |
 | `dothtml_exporter.py` | Wraps `export_dot`, substitutes into HTML template |
+| `utils.py` | Shared helpers: `has_real_comment()`, `_PGN_COMMAND_ANNOTATION_RE` |
 | `templates/dothtml_default.html` | Default d3-graphviz viewer template |
 
 ### `export_dot` return type
@@ -104,6 +108,12 @@ Same tuple shape. The caller (CLI or scripts) writes SVG files to the output dir
 SVGs are written alongside the output file (`.dot` or `.html`) when output is to a **file**.
 When output is **stdout** (`output_file.name == "<stdout>"`), image references are included
 but no SVG files are written.
+
+### Game comment
+The PGN comment before the first move (`game.comment`) is stored in JSON/EDN output as
+`headers["Comment"]`. In DOT/dothtml output it appears as an italic row in the root node label.
+In both cases `[%...]` annotations are stripped; a comment consisting only of annotations is
+silently omitted.
 
 ### Image modes
 Four modes, combinable: `none`, `all`, `variations` (default), `commented`.
@@ -120,8 +130,15 @@ fork), not the branch position itself. See `json_exporter._collect_image_fens_re
 
 ### Node structure
 Each node is a GraphViz `shape=plaintext` with an HTML `<<table>>` label.
-Moves are grouped into **blocks** — a block ends after any move that has a comment.
+Moves are grouped into **blocks** — a block ends after any move that has a **real human comment**
+(PGN command annotations such as `[%clk]`, `[%eval]`, `[%csl]`/`[%cal]` do not count).
 Each block is one `<tr>` row; image rows follow immediately after the block row they belong to.
+
+### PGN command annotation filtering
+All `[%...]` PGN command annotations (clock, eval, arrows, etc.) are stripped before rendering
+comment text in node labels, edge labels, and the root node game comment.
+The shared utility `chesstree.utils.has_real_comment(comment)` returns `True` only when the
+comment contains text beyond these annotations. Use it wherever "has a comment" is checked.
 
 ### NAG coloring
 NAG symbols are appended directly to the SAN (`e4?`, `Nxg5?!`). Only the SAN+NAG is wrapped
@@ -173,7 +190,8 @@ listing the missing ones.
 | `test_dot_exporter.py` | DOT export, image dict, NAG coloring |
 | `test_dothtml_exporter.py` | HTML export, template validation, JS escaping |
 | `test_cli.py` | CLI argument parsing and dispatch |
-| `test_functional.py` | End-to-end round-trips |
+| `test_functional.py` | End-to-end round-trips using real PGN samples |
+| `test_utils.py` | `has_real_comment()` and annotation-stripping logic |
 
 ### Helpers
 - `_dot(path, **kwargs)` in `TestDotFunctional` returns just the DOT string (unpacks the tuple)
