@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{CHESSTREE_TITLE}}</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      margin: 0;
+      padding: 0;
+    }
+    header {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      padding: 0.5rem 1rem;
+      background: #f5f5f5;
+      border-bottom: 1px solid #ddd;
+    }
+    header h1 {
+      font-size: 1rem;
+      margin: 0;
+      flex: 1;
+    }
+    label {
+      font-size: 0.9rem;
+    }
+    #graph {
+      border-top: none;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>{{CHESSTREE_TITLE}}</h1>
+    <label for="engine">Layout engine:</label>
+    <select id="engine">
+      <option value="circo">Circo</option>
+      <option value="dot" selected>Dot</option>
+      <option value="fdp">Fdp</option>
+      <option value="neato">Neato</option>
+      <option value="osage">Osage</option>
+      <option value="patchwork">Patchwork</option>
+      <option value="twopi">Twopi</option>
+    </select>
+  </header>
+
+  <div id="graph"></div>
+
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <script src="https://unpkg.com/d3-graphviz@5.6.0/build/d3-graphviz.js"></script>
+  <script>
+    const margin = 50; // extra space to avoid scrollbars
+
+    let graphviz = graphvizInit("dot");
+
+    function graphvizInit(engine) {
+      return d3.select("#graph").graphviz()
+        .engine(engine)
+        .logEvents(false)
+        .on("initEnd", render);
+    }
+
+    function render() {
+      graphviz
+        {{CHESSTREE_IMAGES}}
+        .zoomScaleExtent([0.5, 4])
+        .attributer(attributer)
+        .renderDot(dot);
+    }
+
+    function attributer(datum, index, nodes) {
+      if (datum.tag !== "svg") return;
+      const selection = d3.select(this);
+      const svgWidth = window.innerWidth - margin;
+      const svgHeight = window.innerHeight - margin;
+      selection
+        .attr("width", svgWidth)
+        .attr("height", svgHeight)
+        .attr("viewBox", `0 0 ${svgWidth} ${svgHeight}`);
+      datum.attributes.width = svgWidth;
+      datum.attributes.height = svgHeight;
+      datum.attributes.viewBox = `0 0 ${svgWidth} ${svgHeight}`;
+    }
+
+    const dot = `{{CHESSTREE_DOT}}`;
+
+    d3.select("#engine").on("change", function () {
+      graphviz.destroy();
+      graphviz = graphvizInit(d3.select(this).property("value"));
+    });
+  </script>
+</body>
+</html>
