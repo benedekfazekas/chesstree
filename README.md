@@ -324,10 +324,3 @@ python -m chesstree.cli -i path/to/game.pgn
 ## AI assisted development
 
 The project is developed in a supervised AI development manner where I try to keep a close eye on design choices, read and review the generated code, test the output manually etc.
-
-
-
-## TODO
-
-- [ ] **JSON/EDN output: handle PGN command annotations** — Moves annotated with machine-generated PGN command annotations such as `[%clk ...]` (clock time), `[%emt ...]` (elapsed move time), `[%eval ...]` (engine evaluation), `[%csl ...]` / `[%cal ...]` (coloured squares/arrows) have these tags surfaced as plain text in the `comments` field of the JSON/EDN output. These should be parsed into dedicated structured fields (e.g. `clock`, `eval`, `arrows`) and stripped from the `comments` field so that only human-readable commentary appears there.
-- [ ] **DOT / dothtml output: consider command annotation handling** — The same `[%...]` tags are currently stripped when rendering node labels and edge labels (so they do not appear as noise in the graph), but they are not surfaced as structured data. Consider whether any of them (e.g. `[%eval]` for evaluation, `[%csl]`/`[%cal]` for highlights) would add value if represented visually in the graph nodes.
