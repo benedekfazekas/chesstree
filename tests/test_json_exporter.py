@@ -72,7 +72,8 @@ class TestJsonExporter:
         assert first_move["san"] == "e4"
         assert first_move["turn"] == "white"
         assert first_move["move_number"] == 1
-        assert "fen" in first_move
+        assert "fen_before" in first_move
+        assert "fen_after" in first_move
         assert "uci" in first_move
         assert "board_img_after" in first_move
 
