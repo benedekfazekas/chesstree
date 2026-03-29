@@ -61,7 +61,7 @@ implementing. Save the plan to the session state `plan.md`. Break the plan into 
 ### Git commits
 - Title + one sentence body (or a short bullet list for multi-fix commits)
 - Do **not** mention Copilot or AI in the message
-- Stage files first; the user controls what is staged
+- if working locally and on the `main` branch the user controls what is staged before committing
 - if working on a github issue always put a reference of the issue in the commit message
 - never push directly on the `main` branch
 
@@ -229,6 +229,8 @@ python3 -m venv .venv && source .venv/bin/activate && pip install -e ".[dev]"
 2. **Create worktrees** — one per issue, each branching from the same base (usually `main`).
 3. **Launch sub-agents** — one `general-purpose` background agent per worktree with a detailed
    prompt covering the issue scope, implementation plan, test expectations, and commit message.
+   Sub-agents stage and commit directly in their worktree — the "user controls staging" rule
+   does not apply here.
 4. **Wait for completion** — agents run in parallel. Review results as they finish.
 5. **Spot-check** — verify tests pass in each worktree, review diffs for correctness.
 6. **Push and create PRs** — push all branches and create PRs in parallel.
