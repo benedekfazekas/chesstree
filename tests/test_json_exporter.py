@@ -75,7 +75,7 @@ class TestJsonExporter:
         assert "fen_before" in first_move
         assert "fen_after" in first_move
         assert "uci" in first_move
-        assert "board_img_after" in first_move
+        assert "board_img_after" not in first_move
 
     def test_result(self):
         game = _parse_game(SIMPLE_PGN)

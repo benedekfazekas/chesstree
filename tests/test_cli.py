@@ -43,7 +43,7 @@ def _pgn_to_json_str(pgn: str) -> str:
 class TestPgnToJson:
     def test_basic_conversion_produces_valid_json(self):
         output_f = _make_output()
-        pgn_to_json(_make_input(SIMPLE_PGN), output_f, forblack=False, edn=False)
+        pgn_to_json(_make_input(SIMPLE_PGN), output_f, edn=False)
         output_f.seek(0)
         data = json.loads(output_f.read())
         assert data["headers"]["White"] == "Alice"
@@ -51,7 +51,7 @@ class TestPgnToJson:
 
     def test_edn_output(self):
         output_f = _make_output()
-        pgn_to_json(_make_input(SIMPLE_PGN), output_f, forblack=False, edn=True)
+        pgn_to_json(_make_input(SIMPLE_PGN), output_f, edn=True)
         output_f.seek(0)
         result = output_f.read()
         assert ":headers" in result
@@ -59,16 +59,17 @@ class TestPgnToJson:
 
     def test_concise_output(self):
         output_f = _make_output()
-        pgn_to_json(_make_input(SIMPLE_PGN), output_f, forblack=False, edn=False, concise=True)
+        pgn_to_json(_make_input(SIMPLE_PGN), output_f, edn=False, concise=True)
         output_f.seek(0)
         # Trim trailing newlines added by print(..., end="\n\n")
         result = output_f.read().strip()
         assert "\n" not in result
 
     def test_forblack_flag_accepted(self):
-        """Smoke test that the forblack flag doesn't raise."""
+        """Smoke test: pgn_to_json no longer accepts forblack; this test
+        verifies the basic conversion still works."""
         output_f = _make_output()
-        pgn_to_json(_make_input(SIMPLE_PGN), output_f, forblack=True, edn=False)
+        pgn_to_json(_make_input(SIMPLE_PGN), output_f, edn=False)
         output_f.seek(0)
         data = json.loads(output_f.read())
         assert len(data["moves"]) > 0
@@ -76,7 +77,7 @@ class TestPgnToJson:
     def test_empty_pgn_exits_with_error(self):
         output_f = _make_output()
         with pytest.raises(SystemExit) as exc_info:
-            pgn_to_json(_make_input(EMPTY_PGN), output_f, forblack=False, edn=False)
+            pgn_to_json(_make_input(EMPTY_PGN), output_f, edn=False)
         assert exc_info.value.code == 1
 
 

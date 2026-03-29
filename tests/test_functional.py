@@ -32,12 +32,12 @@ GERGESHAIN = SAMPLE_PGNS / "gergeshain-vs-lisperer.pgn"
 # Helpers
 # ---------------------------------------------------------------------------
 
-def convert(pgn_path: pathlib.Path, forblack: bool = False, edn: bool = False, concise: bool = False, images: list | None = None) -> dict:
+def convert(pgn_path: pathlib.Path, edn: bool = False, concise: bool = False) -> dict:
     """Run the full pgn_to_json pipeline and return the parsed JSON dict."""
     output = io.StringIO()
     output.name = "<stdout>"
     with open(pgn_path) as f:
-        pgn_to_json(f, output, forblack=forblack, edn=edn, concise=concise, images=images)
+        pgn_to_json(f, output, edn=edn, concise=concise)
     output.seek(0)
     return json.loads(output.read())
 
@@ -72,73 +72,25 @@ def nag_symbols(move: dict) -> list[str | None]:
 # Board images
 # ---------------------------------------------------------------------------
 
-class TestBoardImages:
-    def test_all_mode_every_move_has_image(self):
-        data = convert(LISPERER, images=["all"])
-        moves = main_line_moves(data["moves"])
-        assert len(moves) > 0
-        for move in moves:
-            assert "board_img_after" in move, f"Missing board_img_after on {move['san']}"
+# ---------------------------------------------------------------------------
+# Board images are no longer in JSON output
+# ---------------------------------------------------------------------------
 
-    def test_all_mode_variation_moves_have_images(self):
-        data = convert(HILLBILLY, images=["all"])
-        all_moves = list(iter_moves(data["moves"]))
-        assert all_moves, "No moves found"
-        for move in all_moves:
-            assert "board_img_after" in move, f"Missing board_img_after in variation on {move['san']}"
-
-    def test_board_images_contain_svg(self):
-        data = convert(LISPERER, images=["all"])
-        for move in main_line_moves(data["moves"]):
-            assert move["board_img_after"].startswith("<svg"), f"board_img_after not SVG on {move['san']}"
-
-    def test_none_mode_no_images(self):
-        data = convert(LISPERER, images=["none"])
+class TestNoBoardImagesInJson:
+    def test_no_board_img_after_in_any_move(self):
+        data = convert(LISPERER)
         for move in iter_moves(data["moves"]):
             assert "board_img_after" not in move, f"Unexpected board_img_after on {move['san']}"
 
-    def test_variations_mode_is_default(self):
-        data_default = convert(LISPERER)
-        data_explicit = convert(LISPERER, images=["variations"])
-        # Same number of moves with images
-        default_with_img = sum(1 for m in iter_moves(data_default["moves"]) if "board_img_after" in m)
-        explicit_with_img = sum(1 for m in iter_moves(data_explicit["moves"]) if "board_img_after" in m)
-        assert default_with_img == explicit_with_img
-
-    def test_variations_mode_fewer_images_than_all(self):
-        data_all = convert(LISPERER, images=["all"])
-        data_vars = convert(LISPERER, images=["variations"])
-        all_count = sum(1 for m in iter_moves(data_all["moves"]) if "board_img_after" in m)
-        vars_count = sum(1 for m in iter_moves(data_vars["moves"]) if "board_img_after" in m)
-        assert vars_count < all_count
-
-    def test_variations_mode_last_move_has_image(self):
-        data = convert(LISPERER, images=["variations"])
-        main = main_line_moves(data["moves"])
-        assert "board_img_after" in main[-1], "Last main-line move should have an image in variations mode"
-
-    def test_commented_mode_only_commented_moves_have_images(self):
-        data = convert(LISPERER, images=["commented"])
+    def test_no_board_img_after_in_variation_moves(self):
+        data = convert(HILLBILLY)
         for move in iter_moves(data["moves"]):
-            has_img = "board_img_after" in move
-            has_comment = bool(move.get("comments"))
-            assert has_img == has_comment, (
-                f"Move {move['san']}: image={has_img} but comment={has_comment}"
-            )
+            assert "board_img_after" not in move, f"Unexpected board_img_after on {move['san']}"
 
-    def test_variations_and_commented_combined(self):
-        data_vars = convert(LISPERER, images=["variations"])
-        data_both = convert(LISPERER, images=["variations", "commented"])
-        vars_count = sum(1 for m in iter_moves(data_vars["moves"]) if "board_img_after" in m)
-        both_count = sum(1 for m in iter_moves(data_both["moves"]) if "board_img_after" in m)
-        assert both_count >= vars_count
-
-    def test_black_orientation_produces_different_svg(self):
-        data_white = convert(LISPERER, forblack=False, images=["all"])
-        data_black = convert(LISPERER, forblack=True, images=["all"])
-        first_white = data_white["moves"][0]["board_img_after"]
-        first_black = data_black["moves"][0]["board_img_after"]
-        assert first_white != first_black, "Board SVG should differ between white and black orientation"
+    def test_fen_after_still_present(self):
+        data = convert(LISPERER)
+        for move in iter_moves(data["moves"]):
+            assert "fen_after" in move, f"Missing fen_after on {move['san']}"
 
 
 # ---------------------------------------------------------------------------
@@ -348,28 +300,24 @@ class TestGergeshainLisperer:
                 assert "[%clk" not in c, f"[%clk] leaked into comments of move {move['san']}: {c!r}"
 
     def test_commented_mode_no_image_on_clock_only_moves(self):
-        """Moves annotated only with [%clk] must NOT trigger a board image in 'commented' mode."""
-        data = convert(GERGESHAIN, images=["commented"])
-        # e4 is the very first move; its only annotation is [%clk 0:05:00]
-        e4 = find_in_main_line(data["moves"], "e4", turn="white")
-        assert e4 is not None, "e4 not found in main line"
-        assert "board_img_after" not in e4, "e4 (clock-only annotation) should not have a board image"
+        """In commented mode, DOT output should not produce images for clock-only moves."""
+        game = _load_game(GERGESHAIN)
+        _, images_commented = export_dot(game, image_modes=frozenset(["commented"]))
+        _, images_all = export_dot(game, image_modes=frozenset(["all"]))
+        assert len(images_commented) < len(images_all)
 
     def test_commented_mode_image_on_real_comment_moves(self):
-        """Moves with genuine human commentary DO get a board image in 'commented' mode."""
-        data = convert(GERGESHAIN, images=["commented"])
-        # 20... Rhg8 has the comment "was trying to find counterplay desperately"
-        rhg8 = find_in_main_line(data["moves"], "Rhg8", turn="black")
-        assert rhg8 is not None, "Rhg8 not found in main line"
-        assert "board_img_after" in rhg8, "Rhg8 (has real comment) should have a board image"
+        """In commented mode, DOT output should produce images for real-comment moves."""
+        game = _load_game(GERGESHAIN)
+        _, images_commented = export_dot(game, image_modes=frozenset(["commented"]))
+        assert len(images_commented) > 0
 
     def test_fewer_commented_images_than_all(self):
-        data_all = convert(GERGESHAIN, images=["all"])
-        data_commented = convert(GERGESHAIN, images=["commented"])
-        all_count = sum(1 for m in iter_moves(data_all["moves"]) if "board_img_after" in m)
-        commented_count = sum(1 for m in iter_moves(data_commented["moves"]) if "board_img_after" in m)
-        assert commented_count < all_count, (
-            f"commented mode ({commented_count}) should produce fewer images than all mode ({all_count})"
+        game = _load_game(GERGESHAIN)
+        _, images_all = export_dot(game, image_modes=frozenset(["all"]))
+        _, images_commented = export_dot(game, image_modes=frozenset(["commented"]))
+        assert len(images_commented) < len(images_all), (
+            f"commented mode ({len(images_commented)}) should produce fewer DOT SVGs than all mode ({len(images_all)})"
         )
 
     def test_real_comments_present_on_annotated_moves(self):

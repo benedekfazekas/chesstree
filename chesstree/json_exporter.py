@@ -117,17 +117,12 @@ class JsonExporter(BaseVisitor[str]):
         variations: bool = True,
         edn: bool = False,
         concise: bool = False,
-        board_img_for_black: bool = False,
-        image_fens: Optional[set] = None,
     ):
         self.headers_flag = headers
         self.comments_flag = comments
         self.variations_flag = variations
         self.edn_flag = edn
-        self.board_img_for_black_flag = board_img_for_black
         self.indent = None if concise else 2
-        # None → all moves get images; set → only matching FENs (empty set = no images)
-        self.image_fens = image_fens
 
         self.reset_game()
 
@@ -196,7 +191,6 @@ class JsonExporter(BaseVisitor[str]):
         board_after = board.copy()
         board_after.push(move)
         fen_after = board_after.fen()
-        orientation = chess.BLACK if self.board_img_for_black_flag else chess.WHITE
         move_entry = {
             "move_number": board.fullmove_number,
             "turn": "white" if board.turn == chess.WHITE else "black",
@@ -205,10 +199,6 @@ class JsonExporter(BaseVisitor[str]):
             "fen_before": board.fen(),
             "fen_after": fen_after,
         }
-        if self.image_fens is None or fen_after in self.image_fens:
-            move_entry["board_img_after"] = chess.svg.board(
-                board_after, size=250, orientation=orientation
-            ).replace('"', '\\"')
         self.current_variation.append(move_entry)
 
     def visit_result(self, result: str) -> None:
