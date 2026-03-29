@@ -15,7 +15,8 @@ The tool produces a JSON (or EDN) object with three top-level keys:
       "turn": "white",
       "san": "e4",
       "uci": "e2e4",
-      "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+      "fen_before": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+      "fen_after": "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1",
       "board_img_after":  "<svg ...>"
     },
     ...

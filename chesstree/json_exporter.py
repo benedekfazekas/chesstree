@@ -202,7 +202,8 @@ class JsonExporter(BaseVisitor[str]):
             "turn": "white" if board.turn == chess.WHITE else "black",
             "san": board.san(move),
             "uci": move.uci(),
-            "fen": board.fen(),
+            "fen_before": board.fen(),
+            "fen_after": fen_after,
         }
         if self.image_fens is None or fen_after in self.image_fens:
             move_entry["board_img_after"] = chess.svg.board(
