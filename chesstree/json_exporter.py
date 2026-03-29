@@ -156,7 +156,17 @@ class JsonExporter(BaseVisitor[str]):
         if not self.variations_flag:
             return SKIP
         variation: List[dict] = []
-        self.current_variation.append({"variation": variation})
+        # Walk backwards to find the preceding move entry (skip variation
+        # wrappers that may sit between us and the actual move).
+        branch_fen: str | None = None
+        for entry in reversed(self.current_variation):
+            if "fen_before" in entry:
+                branch_fen = entry["fen_before"]
+                break
+        wrapper: dict = {"variation": variation}
+        if branch_fen is not None:
+            wrapper["branch_fen"] = branch_fen
+        self.current_variation.append(wrapper)
         self.variation_stack.append(self.current_variation)
         self.current_variation = variation
         return None

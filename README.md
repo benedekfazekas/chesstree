@@ -25,7 +25,7 @@ The tool produces a JSON (or EDN) object with three top-level keys:
 }
 ```
 
-Variations appear inline as `{ "variation": [ ... ] }` entries within the `moves` array.
+Variations appear inline as `{ "variation": [ ... ], "branch_fen": "<FEN>" }` entries within the `moves` array, where `branch_fen` is the board position from which the variation's moves are played.
 
 ---
 

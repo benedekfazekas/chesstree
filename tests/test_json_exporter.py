@@ -111,6 +111,19 @@ class TestJsonExporter:
         variation_entries = [m for m in data["moves"] if "variation" in m]
         assert len(variation_entries) == 1
 
+    def test_variation_has_branch_fen(self):
+        game = _parse_game(VARIATION_PGN)
+        exporter = JsonExporter(variations=True)
+        data = json.loads(game.accept(exporter))
+        variation_entry = next(m for m in data["moves"] if "variation" in m)
+        assert "branch_fen" in variation_entry
+        # branch_fen must equal fen_before of the preceding move (1... e5),
+        # which is the position after 1. e4 — where black is to move
+        e5_move = data["moves"][1]
+        assert variation_entry["branch_fen"] == e5_move["fen_before"]
+        # It should also match the first variation move's fen_before
+        assert variation_entry["branch_fen"] == variation_entry["variation"][0]["fen_before"]
+
     def test_variations_excluded(self):
         game = _parse_game(VARIATION_PGN)
         exporter = JsonExporter(variations=False)
