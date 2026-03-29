@@ -218,6 +218,23 @@ class TestVariations:
                 for c in move["comments"]:
                     assert isinstance(c, str), f"Each comment should be a string, got {type(c)}"
 
+    def test_branch_fen_equals_first_variation_move_fen_before(self):
+        """branch_fen on every variation wrapper must equal the first move's fen_before."""
+        data = convert(HILLBILLY)
+
+        def check_branch_fens(moves: list) -> None:
+            for entry in moves:
+                if "variation" in entry:
+                    assert "branch_fen" in entry, "variation wrapper missing branch_fen"
+                    first_move = entry["variation"][0]
+                    assert entry["branch_fen"] == first_move["fen_before"], (
+                        f"branch_fen {entry['branch_fen']!r} != "
+                        f"first move fen_before {first_move['fen_before']!r}"
+                    )
+                    check_branch_fens(entry["variation"])
+
+        check_branch_fens(data["moves"])
+
     def test_lisperer_has_variations_and_comments(self):
         # The annotated real game has both
         data = convert(LISPERER)
