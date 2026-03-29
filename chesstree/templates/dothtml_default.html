@@ -29,6 +29,17 @@
     #graph {
       border-top: none;
     }
+    #board-hover {
+      display: none;
+      position: fixed;
+      pointer-events: none;
+      background: white;
+      border: 1px solid #aaa;
+      border-radius: 4px;
+      box-shadow: 2px 2px 8px rgba(0,0,0,0.3);
+      padding: 4px;
+      z-index: 1000;
+    }
   </style>
 </head>
 <body>
@@ -47,10 +58,16 @@
   </header>
 
   <div id="graph"></div>
+  <div id="board-hover"></div>
 
   <script src="https://d3js.org/d3.v7.min.js"></script>
   <script src="https://unpkg.com/d3-graphviz@5.6.0/build/d3-graphviz.js"></script>
   <script>
+    // Hover image data — populated by chesstree when --hover-for-all-moves is used.
+    // hoverEnabled: true means every move cell has a board popup on mouseover.
+    // hoverImages: JSON object mapping fenhash → SVG string.
+    {{CHESSTREE_HOVER_DATA}}
+
     const margin = 50; // extra space to avoid scrollbars
 
     let graphviz = graphvizInit("dot");
@@ -59,7 +76,8 @@
       return d3.select("#graph").graphviz()
         .engine(engine)
         .logEvents(false)
-        .on("initEnd", render);
+        .on("initEnd", render)
+        .on("end", attachHoverHandlers);
     }
 
     function render() {
@@ -82,6 +100,33 @@
       datum.attributes.width = svgWidth;
       datum.attributes.height = svgHeight;
       datum.attributes.viewBox = `0 0 ${svgWidth} ${svgHeight}`;
+    }
+
+    function attachHoverHandlers() {
+      if (!hoverEnabled || !Object.keys(hoverImages).length) return;
+      const popup = document.getElementById("board-hover");
+      d3.selectAll("a").each(function () {
+        const el = d3.select(this);
+        // Graphviz SVG uses xlink:href (SVG 1.1) or href (SVG 2).
+        const href = el.attr("xlink:href") || el.attr("href") || "";
+        if (!href.startsWith("#hover-")) return;
+        const key = href.slice(7); // strip "#hover-"
+        const svg = hoverImages[key];
+        if (!svg) return;
+        el.on("mouseover", function (event) {
+          popup.innerHTML = svg;
+          popup.style.display = "block";
+          popup.style.left = (event.clientX + 12) + "px";
+          popup.style.top  = (event.clientY + 12) + "px";
+        });
+        el.on("mousemove", function (event) {
+          popup.style.left = (event.clientX + 12) + "px";
+          popup.style.top  = (event.clientY + 12) + "px";
+        });
+        el.on("mouseout", function () {
+          popup.style.display = "none";
+        });
+      });
     }
 
     const dot = `{{CHESSTREE_DOT}}`;

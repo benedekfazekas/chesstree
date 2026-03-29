@@ -370,24 +370,41 @@ class TestGergeshainLisperer:
 
     def test_dot_root_node_contains_game_comment(self):
         game = _load_game(GERGESHAIN)
-        dot, _ = export_dot(game)
+        dot, _, _ = export_dot(game)
         assert "opening mistake" in dot, "DOT root node should contain the game comment text"
 
     def test_dot_root_node_game_comment_is_italic(self):
         game = _load_game(GERGESHAIN)
-        dot, _ = export_dot(game)
+        dot, _, _ = export_dot(game)
         assert "<i>" in dot, "Game comment should be wrapped in <i> tags in the DOT root node"
 
     def test_dot_output_no_clk_annotations(self):
         """[%clk] text must never appear in the DOT output."""
         game = _load_game(GERGESHAIN)
-        dot, _ = export_dot(game)
+        dot, _, _ = export_dot(game)
         assert "[%clk" not in dot, "[%clk] annotation leaked into DOT output"
 
     def test_dot_commented_mode_fewer_images_than_all(self):
         game = _load_game(GERGESHAIN)
-        _, images_all = export_dot(game, image_modes=frozenset(["all"]))
-        _, images_commented = export_dot(game, image_modes=frozenset(["commented"]))
+        _, images_all, _ = export_dot(game, image_modes=frozenset(["all"]))
+        _, images_commented, _ = export_dot(game, image_modes=frozenset(["commented"]))
         assert len(images_commented) < len(images_all), (
             f"commented mode ({len(images_commented)}) should produce fewer DOT SVGs than all mode ({len(images_all)})"
         )
+
+    def test_hover_for_all_moves_produces_hover_images(self):
+        game = _load_game(GERGESHAIN)
+        _, _inline, hover = export_dot(game, hover=True)
+        assert len(hover) > 0, "hover mode should produce at least one hover SVG"
+
+    def test_hover_html_contains_hover_enabled(self):
+        from chesstree.dothtml_exporter import export_dothtml
+        game = _load_game(GERGESHAIN)
+        html, _ = export_dothtml(game, image_modes=frozenset(["none"]), hover=True)
+        assert "const hoverEnabled = true;" in html
+
+    def test_hover_html_contains_svg_data(self):
+        from chesstree.dothtml_exporter import export_dothtml
+        game = _load_game(GERGESHAIN)
+        html, _ = export_dothtml(game, image_modes=frozenset(["none"]), hover=True)
+        assert "<svg" in html, "hover HTML should embed SVG board images"
