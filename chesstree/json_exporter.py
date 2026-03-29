@@ -189,8 +189,8 @@ class JsonExporter(BaseVisitor[str]):
     def visit_nag(self, nag: int) -> None:
         if self.comments_flag and self.current_variation:
             if "nags" not in self.current_variation[-1]:
-                self.current_variation[-1]["nags"] = []
-            self.current_variation[-1]["nags"].append({nag: NAG_TO_PGN_STRING.get(nag)})
+                self.current_variation[-1]["nags"] = {}
+            self.current_variation[-1]["nags"][nag] = NAG_TO_PGN_STRING.get(nag)
 
     def visit_move(self, board: chess.Board, move: chess.Move) -> None:
         board_after = board.copy()
