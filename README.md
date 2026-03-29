@@ -1,6 +1,6 @@
 # chesstree
 
-A command-line tool for converting chess games between PGN, JSON, EDN, GraphViz DOT, and interactive HTML formats. It accepts PGN or chesstree JSON as input (auto-detected from the file extension) and can output JSON, EDN, PGN, DOT, or dothtml via the `-f`/`--format` flag. JSON output includes move number, SAN and UCI notation, FEN position, SVG board images, comments, NAGs, and variations. DOT output models the game tree as a left-to-right digraph suitable for rendering with GraphViz tools. The dothtml format wraps the DOT graph in a self-contained browser viewer powered by [d3-graphviz](https://github.com/magjac/d3-graphviz), with pan, zoom, and board images included.
+A command-line tool for converting chess games between PGN, JSON, EDN, GraphViz DOT, and interactive HTML formats. It accepts PGN or chesstree JSON as input (auto-detected from the file extension) and can output JSON, EDN, PGN, DOT, or dothtml via the `-f`/`--format` flag. JSON output includes move number, SAN and UCI notation, FEN positions, comments, NAGs, and variations. DOT output models the game tree as a left-to-right digraph suitable for rendering with GraphViz tools. The dothtml format wraps the DOT graph in a self-contained browser viewer powered by [d3-graphviz](https://github.com/magjac/d3-graphviz), with pan, zoom, and board images included.
 
 ## Output format
 
@@ -16,8 +16,7 @@ The tool produces a JSON (or EDN) object with three top-level keys:
       "san": "e4",
       "uci": "e2e4",
       "fen_before": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
-      "fen_after": "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1",
-      "board_img_after":  "<svg ...>"
+      "fen_after": "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1"
     },
     ...
   ],
@@ -80,12 +79,13 @@ options:
   -o, --output OUTPUT                     Output file (default: stdout)
   -f, --format {json,edn,pgn,dot,dothtml} Output format: json (default), edn, pgn, dot, or dothtml
   --input-format {pgn,json}               Override auto-detected input format
-  -b, --forblack                          Board images from Black's perspective (json/edn/dot/dothtml)
-  --images MODE [MODE ...]                Image generation mode (default: variations)
+  -b, --forblack                          Board images from Black's perspective (dot/dothtml)
+  --images MODE [MODE ...]                Image generation mode for dot/dothtml output (default: variations)
                                           Choices: none, all, variations, commented.
                                           'variations' and 'commented' may be combined.
-                                          For dot/dothtml output, SVG files are written alongside
-                                          the output file; stdout skips writing SVGs.
+                                          SVG files are written alongside the output file;
+                                          stdout skips writing SVGs.
+                                          Has no effect on json/edn output.
   --template FILE                         Custom HTML template for dothtml output.
                                           Must contain {{CHESSTREE_TITLE}}, {{CHESSTREE_IMAGES}},
                                           and {{CHESSTREE_DOT}} placeholders. Only used with -f dothtml.
@@ -126,15 +126,15 @@ Print compact JSON to stdout:
 cat game.pgn | chesstree -i - -c
 ```
 
-Generate board images from Black's perspective:
+Generate board images from Black's perspective (dot/dothtml output):
 
 ```bash
-chesstree -i game.pgn -o game.json -b
+chesstree -i game.pgn -f dot -o game.dot -b
 ```
 
 ### Board image modes
 
-The `--images` flag controls which moves carry a board image in JSON/EDN output and which segment nodes carry an SVG image row in DOT/dothtml output. The following modes are available:
+The `--images` flag controls which segment nodes carry an SVG image row in DOT/dothtml output. It has no effect on JSON/EDN output (which never contains embedded images — use the `fen_after` field to generate board visuals with any chess library). The following modes are available:
 
 | Mode | Description |
 |------|-------------|
@@ -154,34 +154,34 @@ A chess game tree is naturally divided into **segments** — runs of moves along
 
 This means images appear at the moments of decision — exactly where a reader is most likely to want to visualise the board — while keeping the output compact compared to `all`.
 
-Generate images only at variation endpoints (default):
+Generate images only at variation endpoints (default, dot/dothtml only):
 
 ```bash
-chesstree -i game.pgn -o game.json --images variations
+chesstree -i game.pgn -f dot -o game.dot --images variations
 ```
 
 Generate images for every move:
 
 ```bash
-chesstree -i game.pgn -o game.json --images all
+chesstree -i game.pgn -f dot -o game.dot --images all
 ```
 
 Generate images only at commented moves:
 
 ```bash
-chesstree -i game.pgn -o game.json --images commented
+chesstree -i game.pgn -f dot -o game.dot --images commented
 ```
 
 Generate images at both variation endpoints and commented moves:
 
 ```bash
-chesstree -i game.pgn -o game.json --images variations commented
+chesstree -i game.pgn -f dot -o game.dot --images variations commented
 ```
 
 Omit all board images:
 
 ```bash
-chesstree -i game.pgn -o game.json --images none
+chesstree -i game.pgn -f dot -o game.dot --images none
 ```
 
 Convert a chesstree JSON file back to PGN:
