@@ -4,7 +4,9 @@ import json
 from typing import List, Optional, TextIO
 
 import chess
+import chess.engine
 import chess.pgn
+import chess.svg
 
 
 def _process_moves(game_node: chess.pgn.GameNode, moves: List[dict]) -> None:
@@ -42,6 +44,35 @@ def _process_moves(game_node: chess.pgn.GameNode, moves: List[dict]) -> None:
             for nag_key_str in entry.get("nags", {}):
                 # JSON round-trip turns integer keys into strings ("2" not 2)
                 child_node.nags.add(int(nag_key_str))
+
+            if "clock" in entry:
+                child_node.set_clock(entry["clock"])
+
+            if "emt" in entry:
+                child_node.set_emt(entry["emt"])
+
+            if "eval" in entry:
+                ev = entry["eval"]
+                if "mate" in ev:
+                    score: chess.engine.PovScore = chess.engine.PovScore(
+                        chess.engine.Mate(ev["mate"]), chess.WHITE
+                    )
+                else:
+                    score = chess.engine.PovScore(
+                        chess.engine.Cp(ev["cp"]), chess.WHITE
+                    )
+                child_node.set_eval(score, ev.get("depth"))
+
+            if "arrows" in entry:
+                arrows = [
+                    chess.svg.Arrow(
+                        chess.parse_square(a["tail"]),
+                        chess.parse_square(a["head"]),
+                        color=a["color"],
+                    )
+                    for a in entry["arrows"]
+                ]
+                child_node.set_arrows(arrows)
 
             current_node = child_node
 

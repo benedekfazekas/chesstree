@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import chess
+import chess.pgn
+import chess.svg
 import json
 from chess.pgn import (
     BaseVisitor,
@@ -68,6 +70,61 @@ def to_edn(obj: object, str_as_keyword: bool = False) -> str:
         return "nil"
     else:
         return str(obj)
+
+
+def _extract_command_annotations(comment: str) -> dict:
+    """Extract structured command annotation data from a raw PGN comment string.
+
+    Returns a dict with zero or more of the following keys:
+      clock   – float, seconds remaining (from [%clk])
+      emt     – float, seconds elapsed (from [%emt])
+      eval    – dict with 'cp' (int, white-perspective centipawns) or 'mate'
+                (int, positive=white mates) and optional 'depth' (int)
+      arrows  – list of {'tail', 'head', 'color'} dicts (from [%csl]/[%cal])
+    """
+    result: dict = {}
+
+    match = chess.pgn.CLOCK_REGEX.search(comment)
+    if match:
+        result["clock"] = (
+            int(match.group("hours")) * 3600
+            + int(match.group("minutes")) * 60
+            + float(match.group("seconds"))
+        )
+
+    match = chess.pgn.EMT_REGEX.search(comment)
+    if match:
+        result["emt"] = (
+            int(match.group("hours")) * 3600
+            + int(match.group("minutes")) * 60
+            + float(match.group("seconds"))
+        )
+
+    match = chess.pgn.EVAL_REGEX.search(comment)
+    if match:
+        if match.group("mate"):
+            eval_entry: dict = {"mate": int(match.group("mate"))}
+        else:
+            # PGN stores decimal pawns; convert to integer centipawns (white POV)
+            eval_entry = {"cp": round(float(match.group("cp")) * 100)}
+        depth = match.group("depth")
+        if depth:
+            eval_entry["depth"] = int(depth)
+        result["eval"] = eval_entry
+
+    arrows = []
+    for match in chess.pgn.ARROWS_REGEX.finditer(comment):
+        for group in match.group("arrows").split(","):
+            arrow = chess.svg.Arrow.from_pgn(group)
+            arrows.append({
+                "tail": chess.square_name(arrow.tail),
+                "head": chess.square_name(arrow.head),
+                "color": arrow.color,
+            })
+    if arrows:
+        result["arrows"] = arrows
+
+    return result
 
 
 NAG_TO_PGN_STRING = {
@@ -181,9 +238,15 @@ class JsonExporter(BaseVisitor[str]):
             if text:
                 self.game_data["headers"]["Comment"] = text
             return
+        raw_comments = _standardize_comments(comment)
+        raw_text = " ".join(c for c in raw_comments if c)
+        if raw_text:
+            annotations = _extract_command_annotations(raw_text)
+            if annotations:
+                self.current_variation[-1].update(annotations)
         comments = [
             _PGN_COMMAND_ANNOTATION_RE.sub("", c).strip()
-            for c in _standardize_comments(comment)
+            for c in raw_comments
         ]
         comments = [c for c in comments if c]
         if comments:

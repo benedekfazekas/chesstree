@@ -455,3 +455,100 @@ class TestCollectImageFens:
         fens_vars = collect_image_fens(game, frozenset(["variations"]))
         fens_both = collect_image_fens(game, frozenset(["variations", "commented"]))
         assert fens_both >= fens_vars
+
+
+# ---------------------------------------------------------------------------
+# Command annotation extraction
+# ---------------------------------------------------------------------------
+
+COMMAND_PGN = """\
+[Event "Test"]
+[White "A"]
+[Black "B"]
+[Result "*"]
+
+1. e4 { [%clk 0:09:57] [%eval 0.30,20] Human note } 1... e5 \
+{ [%csl Gf3,Re5] [%cal Gf3e5] } 2. Nf3 { [%emt 0:00:03] [%clk 0:09:54] } \
+2... Nc6 { [%eval #3] } 3. Bb5 { [%eval #-2,15] } *
+"""
+
+
+class TestCommandAnnotations:
+    """Tests for PGN command annotation extraction into structured fields."""
+
+    def _moves(self, pgn: str = COMMAND_PGN) -> list:
+        game = chess.pgn.read_game(io.StringIO(pgn))
+        assert game is not None
+        return json.loads(game.accept(JsonExporter()))["moves"]
+
+    def test_clock_extracted_as_float_seconds(self):
+        e4 = self._moves()[0]
+        assert "clock" in e4
+        assert e4["clock"] == pytest.approx(597.0)
+
+    def test_clock_absent_on_move_without_clk(self):
+        assert "clock" not in self._moves()[1]
+
+    def test_clock_and_emt_on_same_move(self):
+        nf3 = self._moves()[2]
+        assert nf3["clock"] == pytest.approx(594.0)
+        assert nf3["emt"] == pytest.approx(3.0)
+
+    def test_eval_cp_with_depth(self):
+        e4 = self._moves()[0]
+        assert "eval" in e4
+        assert e4["eval"]["cp"] == 30
+        assert e4["eval"]["depth"] == 20
+        assert "mate" not in e4["eval"]
+
+    def test_eval_mate_positive(self):
+        nc6 = self._moves()[3]
+        assert nc6["eval"]["mate"] == 3
+        assert "cp" not in nc6["eval"]
+
+    def test_eval_mate_negative_with_depth(self):
+        bb5 = self._moves()[4]
+        assert bb5["eval"]["mate"] == -2
+        assert bb5["eval"]["depth"] == 15
+
+    def test_arrows_circles_and_arrows(self):
+        e5 = self._moves()[1]
+        assert "arrows" in e5
+        arrows = e5["arrows"]
+        circles = [a for a in arrows if a["tail"] == a["head"]]
+        lines   = [a for a in arrows if a["tail"] != a["head"]]
+        assert len(circles) == 2
+        assert {a["tail"] for a in circles} == {"f3", "e5"}
+        assert len(lines) == 1
+        assert lines[0] == {"tail": "f3", "head": "e5", "color": "green"}
+
+    def test_command_stripped_from_comments(self):
+        e4 = self._moves()[0]
+        assert e4["comments"] == ["Human note"]
+        for c in e4.get("comments", []):
+            assert "[%" not in c
+
+    def test_clock_only_move_has_no_comments(self):
+        assert "comments" not in self._moves()[2]
+
+    def test_arrows_only_move_has_no_comments(self):
+        assert "comments" not in self._moves()[1]
+
+    def test_unknown_commands_stripped_no_error(self):
+        moves = self._moves("[Result \"*\"]\n1. e4 { [%foo bar] [%clk 0:05:00] note } *\n")
+        assert moves[0]["clock"] == pytest.approx(300.0)
+        assert moves[0]["comments"] == ["note"]
+
+    def test_no_command_annotations_when_comments_false(self):
+        game = chess.pgn.read_game(io.StringIO(COMMAND_PGN))
+        data = json.loads(game.accept(JsonExporter(comments=False)))
+        for move in data["moves"]:
+            if "variation" not in move:
+                assert "clock" not in move
+                assert "eval" not in move
+                assert "arrows" not in move
+
+    def test_edn_output_contains_clock_field(self):
+        game = chess.pgn.read_game(io.StringIO("[Result \"*\"]\n1. e4 { [%clk 0:05:00] } *\n"))
+        assert game is not None
+        assert ":clock" in game.accept(JsonExporter(edn=True))

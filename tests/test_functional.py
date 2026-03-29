@@ -352,6 +352,20 @@ class TestGergeshainLisperer:
         assert c6 is not None, "c6 not found in main line"
         assert "comments" not in c6, "c6 (clock-only) should not have a comments entry"
 
+    def test_clock_field_present_on_annotated_moves(self):
+        """Every main-line move annotated with [%clk] must expose a float 'clock' field."""
+        data = convert(GERGESHAIN)
+        for move in main_line_moves(data["moves"]):
+            assert "clock" in move, f"Expected clock field on {move['san']}"
+            assert isinstance(move["clock"], float)
+
+    def test_clock_value_correct(self):
+        """Spot-check: 1. e4 has clock=300.0 (5:00 remaining)."""
+        data = convert(GERGESHAIN)
+        e4 = find_in_main_line(data["moves"], "e4", turn="white")
+        assert e4 is not None
+        assert e4["clock"] == pytest.approx(300.0)
+
     # -- DOT output ----------------------------------------------------------
 
     def test_dot_root_node_contains_game_comment(self):
