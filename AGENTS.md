@@ -62,6 +62,8 @@ implementing. Save the plan to the session state `plan.md`. Break the plan into 
 - Title + one sentence body (or a short bullet list for multi-fix commits)
 - Do **not** mention Copilot or AI in the message
 - Stage files first; the user controls what is staged
+- if working on a github issue always put a reference of the issue in the commit message
+- never push directly on the `main` branch
 
 ---
 
@@ -201,3 +203,41 @@ listing the missing ones.
 ### Adding tests for new output behaviour
 When changing exporter output (new rows, changed formatting), always update or add unit tests
 before touching the code. Check existing tests first to avoid redundant assertions.
+
+---
+
+## Parallel issue implementation with git worktrees
+
+When multiple issues are independent (no code overlap), implement them in parallel using
+git worktrees. Each worktree gets its own branch, venv, and sub-agent.
+
+### Setup
+
+```bash
+# From the main repo, create one worktree per issue branching from main
+git worktree add ../chesstree-issue-N -b issue-N-slug main
+
+# Each worktree needs its own venv
+cd ../chesstree-issue-N
+python3 -m venv .venv && source .venv/bin/activate && pip install -e ".[dev]"
+```
+
+### Workflow
+
+1. **Identify independent issues** — verify they touch different code paths and won't produce
+   merge conflicts. Check the dependency graph before parallelising.
+2. **Create worktrees** — one per issue, each branching from the same base (usually `main`).
+3. **Launch sub-agents** — one `general-purpose` background agent per worktree with a detailed
+   prompt covering the issue scope, implementation plan, test expectations, and commit message.
+4. **Wait for completion** — agents run in parallel. Review results as they finish.
+5. **Spot-check** — verify tests pass in each worktree, review diffs for correctness.
+6. **Push and create PRs** — push all branches and create PRs in parallel.
+
+### Cleanup
+
+After PRs are merged, remove the worktrees:
+
+```bash
+cd /path/to/chesstree
+git worktree remove ../chesstree-issue-N
+```
