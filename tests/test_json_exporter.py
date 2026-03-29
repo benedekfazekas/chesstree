@@ -323,8 +323,7 @@ class TestNagMapping:
         e4 = data["moves"][0]
         assert "nags" in e4, f"Expected NAG on e4 for NAG {nag}"
         # JSON round-trip turns int keys to strings
-        entry = next(n for n in e4["nags"] if list(n.keys())[0] == str(nag))
-        return list(entry.values())[0]
+        return e4["nags"][str(nag)]
 
     def test_integration_forced_move(self):
         from chess.pgn import NAG_FORCED_MOVE

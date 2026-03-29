@@ -39,10 +39,9 @@ def _process_moves(game_node: chess.pgn.GameNode, moves: List[dict]) -> None:
                 # chess.pgn stores a single comment string; join multiple entries
                 child_node.comment = " ".join(comments)
 
-            for nag_entry in entry.get("nags", []):
+            for nag_key_str in entry.get("nags", {}):
                 # JSON round-trip turns integer keys into strings ("2" not 2)
-                nag_key = int(list(nag_entry.keys())[0])
-                child_node.nags.add(nag_key)
+                child_node.nags.add(int(nag_key_str))
 
             current_node = child_node
 

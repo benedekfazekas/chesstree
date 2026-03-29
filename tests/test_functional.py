@@ -65,7 +65,7 @@ def find_in_main_line(moves: list, san: str, turn: str | None = None) -> dict | 
 
 
 def nag_symbols(move: dict) -> list[str | None]:
-    return [list(n.values())[0] for n in move.get("nags", [])]
+    return list(move.get("nags", {}).values())
 
 
 # ---------------------------------------------------------------------------
@@ -151,12 +151,10 @@ class TestNags:
         nf6 = find_in_main_line(data["moves"], "Nf6", turn="black")
         assert nf6 is not None, "Nf6 (black, move 11) not found in main line"
         assert "nags" in nf6, "Expected $10 NAG on Nf6"
-        nag_keys = [list(n.keys())[0] for n in nf6["nags"]]
         # JSON serialises integer dict keys as strings, so 10 → "10"
-        assert "10" in nag_keys, f"Expected NAG key '10', got {nag_keys}"
+        assert "10" in nf6["nags"], f"Expected NAG key '10', got {list(nf6['nags'].keys())}"
         # NAG 10 = NAG_DRAWISH_POSITION → symbol "="
-        nag10_entry = next(n for n in nf6["nags"] if list(n.keys())[0] == "10")
-        assert list(nag10_entry.values())[0] == "="
+        assert nf6["nags"]["10"] == "="
 
     def test_clean_moves_have_no_nags(self):
         # d4 (first move) carries no annotation
