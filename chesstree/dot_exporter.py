@@ -95,17 +95,14 @@ class _DotBuilder:
         game: chess.pgn.Game,
         image_modes: frozenset[str] = frozenset(["variations"]),
         board_img_for_black: bool = False,
-        hover: bool = False,
     ) -> None:
         self.game = game
         self.image_modes = image_modes
         self.orientation = chess.BLACK if board_img_for_black else chess.WHITE
-        self.hover = hover
         self._node_decls: list[str] = []
         self._edge_decls: list[str] = []
         self._main_seg_ids: list[str] = []
-        self._images: dict[str, str] = {}       # filename → SVG content (inline images)
-        self._hover_images: dict[str, str] = {} # fenhash → SVG content (hover popups)
+        self._images: dict[str, str] = {}  # filename → SVG content
 
     def build(self) -> tuple[str, dict[str, str]]:
         root_id = self._render_root_node()
@@ -138,7 +135,7 @@ class _DotBuilder:
             lines.append(f"{{ rank = same; {seg_ids_str}}}")
         lines.extend(self._edge_decls)
         lines.append(" }")
-        return "\n".join(lines), self._images, self._hover_images
+        return "\n".join(lines), self._images
 
     # ------------------------------------------------------------------
     # Graph structure helpers
@@ -285,128 +282,34 @@ class _DotBuilder:
             if is_main
             else f"Variation: {start} - {end} moves"
         )
-
-        blocks = self._group_into_blocks(moves)
-        total_blocks = len(blocks)
-
-        # In hover mode the table has multiple columns (one per move).
-        # Compute the max column count so header/image rows can span the full width.
-        if self.hover:
-            max_cols = max(len(b) for b in blocks) if blocks else 1
-            header = (
-                f'<tr><td colspan="{max_cols}" border="0" align="center">'
-                f'<b>{title}</b></td></tr>'
-            )
-        else:
-            max_cols = 1  # non-hover table is always single-column
-            header = f'<tr><td border="0"><b>{title}</b></td></tr>'
+        header = f'<tr><td border="0"><b>{title}</b></td></tr>'
 
         rows = [header, "<hr/>"]
 
+        blocks = self._group_into_blocks(moves)
+        total_blocks = len(blocks)
         for block_idx, block in enumerate(blocks):
-            if self.hover:
-                rows.append(self._render_block_row_hover(block, block_idx, max_cols))
-            else:
-                move_html = self._format_block_moves(block, first_block=(block_idx == 0))
-                comment_raw = block[-1].comment or ""
-                comment = _PGN_COMMAND_ANNOTATION_RE.sub("", comment_raw).strip()
-                prefix = "moves:" if block_idx == 0 else ""
-                wrapped_comment = _wrap(comment) if comment else ""
-                content = f"&#160;<b>{prefix}{move_html}</b>&#160;{wrapped_comment}"
-                rows.append(f'<tr><td border="0">{content}</td></tr>')
+            move_html = self._format_block_moves(block, first_block=(block_idx == 0))
+            comment_raw = block[-1].comment or ""
+            comment = _PGN_COMMAND_ANNOTATION_RE.sub("", comment_raw).strip()
+
+            prefix = "moves:" if block_idx == 0 else ""
+            wrapped_comment = _wrap(comment) if comment else ""
+
+            content = f"&#160;<b>{prefix}{move_html}</b>&#160;{wrapped_comment}"
+            rows.append(f'<tr><td border="0">{content}</td></tr>')
 
             if self._block_needs_image(block_idx, total_blocks, block):
                 img_filename = self._ensure_image(block[-1])
-                colspan_attr = f' colspan="{max_cols}"' if self.hover else ""
                 rows.append(
-                    f'<tr><td{colspan_attr} href="./{img_filename}" border="0" fixedsize="TRUE"'
+                    f'<tr><td href="./{img_filename}" border="0" fixedsize="TRUE"'
                     f' height="100" width="100"><IMG src="./{img_filename}"/></td></tr>'
                 )
 
-        colspan_attr = f' colspan="{max_cols}"' if self.hover else ""
-        rows.append(f'<tr><td{colspan_attr} border="0"></td></tr>')
+        rows.append('<tr><td border="0"></td></tr>')
 
         inner = "".join(rows)
-        table_attrs = ' cellspacing="0"' if self.hover else ""
-        return f"<<table{table_attrs}>{inner}</table>>"
-
-    def _render_block_row_hover(
-        self, block: list[chess.pgn.ChildNode], block_idx: int, max_cols: int
-    ) -> str:
-        """Render a move block as a <tr> with one <td href="#hover-..."> per move.
-
-        Used when hover mode is enabled. Each move cell links to ``#hover-{fenhash}``
-        so that the JS post-render hook can attach mouseover handlers.
-
-        The comment (if any) is appended to the last move cell rather than given its
-        own column.  The last cell also receives a ``colspan`` to fill any remaining
-        columns up to ``max_cols``, keeping the table layout consistent for the
-        header and image rows that always span the full width.
-        """
-        items = self._format_block_moves_hover(block, first_block=(block_idx == 0))
-        comment_raw = block[-1].comment or ""
-        comment = _PGN_COMMAND_ANNOTATION_RE.sub("", comment_raw).strip()
-        wrapped_comment = f"&#160;{_wrap(comment)}" if comment else ""
-
-        n = len(items)
-        cells: list[str] = []
-        for i, (san_html, fenhash) in enumerate(items):
-            is_last = i == n - 1
-            # Fold the "moves:" label into the first cell of the first block.
-            prefix = "&#160;moves:&#160;" if (block_idx == 0 and i == 0) else "&#160;"
-            if is_last:
-                remaining = max_cols - n + 1
-                colspan_attr = f' colspan="{remaining}"' if remaining > 1 else ""
-                cells.append(
-                    f'<td{colspan_attr} href="#hover-{fenhash}" border="0">'
-                    f'{prefix}<b>{san_html}</b>{wrapped_comment}&#160;</td>'
-                )
-            else:
-                cells.append(
-                    f'<td href="#hover-{fenhash}" border="0">'
-                    f'{prefix}<b>{san_html}</b></td>'
-                )
-        return "<tr>" + "".join(cells) + "</tr>"
-
-    def _format_block_moves_hover(
-        self, block: list[chess.pgn.ChildNode], first_block: bool
-    ) -> list[tuple[str, str]]:
-        """Return a list of (san_html, fenhash) for each move in the block.
-
-        ``san_html`` is the formatted move text (with NAG font coloring).
-        ``fenhash`` is the node ID of the board FEN *after* the move, used as
-        the ``href`` fragment and as the key in the JS ``hoverImages`` dict.
-        The hover SVG is generated and stored in ``self._hover_images``.
-        """
-        result: list[tuple[str, str]] = []
-        for i, node in enumerate(block):
-            white = _is_white_move(node)
-            num = _move_num(node)
-            san = node.parent.board().san(node.move)
-            nag = _nag_symbol(node)
-            color = _move_color(node)
-            san_nag = f'<font color="{color}">{san}{nag}</font>' if color else f"{san}{nag}"
-
-            if white:
-                move_str = f"{num}. {san_nag}"
-            elif i == 0:
-                move_str = f"{num}. .. {san_nag}"
-            else:
-                move_str = san_nag
-
-            fenhash = self._ensure_hover_image(node)
-            result.append((move_str, fenhash))
-        return result
-
-    def _ensure_hover_image(self, node: chess.pgn.ChildNode) -> str:
-        """Generate a hover SVG for the board after this node; return its fenhash key."""
-        board = node.board()
-        fenhash = _node_id(board.fen())
-        if fenhash not in self._hover_images:
-            self._hover_images[fenhash] = chess.svg.board(
-                board, size=250, orientation=self.orientation
-            )
-        return fenhash
+        return f"<<table>{inner}</table>>"
 
     def _block_needs_image(
         self,
@@ -508,18 +411,10 @@ def export_dot(
     game: chess.pgn.Game,
     image_modes: frozenset[str] = frozenset(["variations"]),
     board_img_for_black: bool = False,
-    hover: bool = False,
-) -> tuple[str, dict[str, str], dict[str, str]]:
-    """Export a chess game to a GraphViz DOT string plus image dicts.
+) -> tuple[str, dict[str, str]]:
+    """Export a chess game to a GraphViz DOT string plus a dict of image files.
 
-    Returns ``(dot_string, inline_images, hover_images)`` where:
-
-    - ``inline_images`` maps SVG filename to SVG content for board images
-      embedded in graph nodes (controlled by ``image_modes``).
-    - ``hover_images`` maps fenhash to SVG content for per-move hover popups
-      (populated only when ``hover=True``; empty dict otherwise).
-
-    The caller is responsible for writing ``inline_images`` files to disk.
-    ``hover_images`` is intended for embedding in the dothtml template.
+    Returns a tuple of (dot_string, images) where images maps filename to SVG
+    content. The images dict is empty when image_modes is empty or {"none"}.
     """
-    return _DotBuilder(game, image_modes, board_img_for_black, hover).build()
+    return _DotBuilder(game, image_modes, board_img_for_black).build()

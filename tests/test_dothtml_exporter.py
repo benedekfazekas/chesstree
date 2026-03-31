@@ -130,7 +130,7 @@ class TestExportDothtml:
         with tempfile.NamedTemporaryFile(mode="w", suffix=".html", delete=False) as f:
             f.write(
                 "<html><head><title>{{CHESSTREE_TITLE}}</title></head>"
-                "<body>{{CHESSTREE_IMAGES}}{{CHESSTREE_DOT}}{{CHESSTREE_HOVER_DATA}}</body></html>"
+                "<body>{{CHESSTREE_IMAGES}}{{CHESSTREE_DOT}}</body></html>"
             )
             tmp_path = pathlib.Path(f.name)
         try:
@@ -211,57 +211,3 @@ class TestEscapeJsTemplateLiteral:
         assert '`; alert("xss"); var x = `' not in html
         # But the escaped version should be present
         assert "\\`" in html
-
-
-class TestHoverMode:
-    """Tests for the {{CHESSTREE_HOVER_DATA}} placeholder and hover feature."""
-
-    def test_default_template_has_hover_placeholder(self):
-        from chesstree.dothtml_exporter import _read_default_template, PLACEHOLDER_HOVER_DATA
-        assert PLACEHOLDER_HOVER_DATA in _read_default_template()
-
-    def test_hover_off_produces_disabled_flag(self):
-        import io
-        import chess.pgn
-        pgn = '[Event "T"]\n[White "A"]\n[Black "B"]\n\n1. e4 e5 1-0'
-        game = chess.pgn.read_game(io.StringIO(pgn))
-        html, _ = export_dothtml(game, image_modes=frozenset(["none"]), hover=False)
-        assert "const hoverEnabled = false;" in html
-
-    def test_hover_off_produces_empty_hover_images(self):
-        import io
-        import chess.pgn
-        pgn = '[Event "T"]\n[White "A"]\n[Black "B"]\n\n1. e4 e5 1-0'
-        game = chess.pgn.read_game(io.StringIO(pgn))
-        html, _ = export_dothtml(game, image_modes=frozenset(["none"]), hover=False)
-        assert "const hoverImages = {};" in html
-
-    def test_hover_on_produces_enabled_flag(self):
-        import io
-        import chess.pgn
-        pgn = '[Event "T"]\n[White "A"]\n[Black "B"]\n\n1. e4 e5 1-0'
-        game = chess.pgn.read_game(io.StringIO(pgn))
-        html, _ = export_dothtml(game, image_modes=frozenset(["none"]), hover=True)
-        assert "const hoverEnabled = true;" in html
-
-    def test_hover_on_produces_non_empty_hover_images(self):
-        import io
-        import chess.pgn
-        pgn = '[Event "T"]\n[White "A"]\n[Black "B"]\n\n1. e4 e5 1-0'
-        game = chess.pgn.read_game(io.StringIO(pgn))
-        html, _ = export_dothtml(game, image_modes=frozenset(["none"]), hover=True)
-        # hoverImages should have at least one SVG entry
-        assert "const hoverImages = {};" not in html
-        assert "<svg" in html
-
-    def test_missing_hover_placeholder_raises(self):
-        import io, pathlib, tempfile
-        import chess.pgn
-        pgn = '[Event "T"]\n[White "A"]\n[Black "B"]\n\n1. e4 1-0'
-        game = chess.pgn.read_game(io.StringIO(pgn))
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".html", delete=False) as f:
-            f.write("{{CHESSTREE_TITLE}}{{CHESSTREE_IMAGES}}{{CHESSTREE_DOT}}")
-            tpath = pathlib.Path(f.name)
-        with pytest.raises(ValueError, match="CHESSTREE_HOVER_DATA"):
-            export_dothtml(game, template_path=tpath)
-        tpath.unlink()

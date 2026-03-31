@@ -70,7 +70,7 @@ The `chesstree` command is available whenever the virtual environment is active.
 ```
 usage: chesstree [-h] [--version] -i INPUT [-o OUTPUT] [-f {json,edn,pgn,dot,dothtml}]
                  [--input-format {pgn,json}] [-b] [--images MODE [MODE ...]]
-                 [--template FILE] [-a] [-c]
+                 [--template FILE] [-c]
 
 options:
   -h, --help                              show this help message and exit
@@ -88,11 +88,7 @@ options:
                                           Has no effect on json/edn output.
   --template FILE                         Custom HTML template for dothtml output.
                                           Must contain {{CHESSTREE_TITLE}}, {{CHESSTREE_IMAGES}},
-                                          {{CHESSTREE_DOT}}, and {{CHESSTREE_HOVER_DATA}} placeholders.
-                                          Only used with -f dothtml.
-  -a, --hover-for-all-moves               Enable per-move hover board popups in dothtml output.
-                                          Each move becomes hoverable — mousing over it shows a
-                                          floating board image. Only meaningful with -f dothtml.
+                                          and {{CHESSTREE_DOT}} placeholders. Only used with -f dothtml.
   -c, --concise                           Compact output, no pretty-printing (json/edn output only)
 ```
 
@@ -226,16 +222,6 @@ open output/game.html
 
 The viewer includes a layout-engine selector (Dot, Circo, Fdp, …) and supports pan and zoom.
 
-#### Per-move hover board images
-
-Add `--hover-for-all-moves` (or `-a`) to make every move in the graph interactive — mousing over any move cell shows a floating board image popup:
-
-```bash
-chesstree -i game.pgn -f dothtml -a -o output/game.html
-```
-
-The hover SVGs are inlined directly in the HTML (no extra files needed). The flag is independent of `--images`: you can combine them to have both per-node inline images at variation branch points and per-move hover popups.
-
 When writing to **stdout**, image references are included in the HTML but no SVG files are written:
 
 ```bash
@@ -250,16 +236,15 @@ You can supply your own template with `--template`:
 chesstree -i game.pgn -f dothtml --template my_template.html -o game.html
 ```
 
-The template is plain HTML with four required placeholders:
+The template is plain HTML with three required placeholders:
 
 | Placeholder | Replaced with |
 |-------------|---------------|
 | `{{CHESSTREE_TITLE}}` | Game title string (e.g. "White vs Black at 2024.01.01") — use in `<title>` and any heading |
 | `{{CHESSTREE_IMAGES}}` | One `.addImage("./name.svg", "144px", "144px")` call per image, one per line |
 | `{{CHESSTREE_DOT}}` | The raw DOT string — place this inside the JS backtick template literal assigned to `dot` |
-| `{{CHESSTREE_HOVER_DATA}}` | JS declarations for hover feature: `const hoverEnabled = …` and `const hoverImages = {…}`. Always present; only populated when `--hover-for-all-moves` is on. |
 
-All four placeholders must be present in the template or generation will fail with an error listing which are missing. The built-in template at `chesstree/templates/dothtml_default.html` in the project source is a good starting point for customisation.
+All three placeholders must be present in the template or generation will fail with an error listing which are missing. The built-in template at `chesstree/templates/default.html` in the project source is a good starting point for customisation.
 
 ### DOT output and board images
 

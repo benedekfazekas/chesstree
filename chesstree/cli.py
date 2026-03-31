@@ -79,17 +79,7 @@ def parse_args() -> argparse.Namespace:
         help=(
             "Custom HTML template file for dothtml output. "
             "Must contain the placeholders {{CHESSTREE_TITLE}}, {{CHESSTREE_IMAGES}}, "
-            "{{CHESSTREE_DOT}}, and {{CHESSTREE_HOVER_DATA}}. Only used with -f dothtml."
-        ),
-    )
-    parser.add_argument(
-        "-a", "--hover-for-all-moves",
-        action="store_true",
-        default=False,
-        help=(
-            "Enable per-move hover board popups in dothtml output. "
-            "Each move becomes a hoverable cell that shows a board image on mouseover. "
-            "Only meaningful with -f dothtml."
+            "and {{CHESSTREE_DOT}}. Only used with -f dothtml."
         ),
     )
     parser.add_argument(
@@ -172,7 +162,7 @@ def game_to_dot(
             sys.exit(1)
 
     modes = frozenset(images or ["variations"])
-    dot_str, images_dict, _hover = export_dot(game, image_modes=modes, board_img_for_black=forblack)
+    dot_str, images_dict = export_dot(game, image_modes=modes, board_img_for_black=forblack)
     print(dot_str, file=output_file)
 
     is_stdout = getattr(output_file, "name", "<stdout>") == "<stdout>"
@@ -195,7 +185,6 @@ def game_to_dothtml(
     images: list | None = None,
     forblack: bool = False,
     template_file: TextIO | None = None,
-    hover: bool = False,
 ) -> None:
     print(f"Reading {input_file.name} and converting to dothtml", file=sys.stderr)
 
@@ -221,7 +210,6 @@ def game_to_dothtml(
             image_modes=modes,
             board_img_for_black=forblack,
             template_path=template_path,
-            hover=hover,
         )
     except ValueError as exc:
         print(f"Error: {exc}", file=sys.stderr)
@@ -247,8 +235,6 @@ def cli() -> None:
 
     if args.template and args.format != "dothtml":
         print("Warning: --template is only used with -f dothtml; ignoring.", file=sys.stderr)
-    if args.hover_for_all_moves and args.format != "dothtml":
-        print("Warning: --hover-for-all-moves is only used with -f dothtml; ignoring.", file=sys.stderr)
 
     input_fmt = _detect_input_format(args.input, args.input_format)
     output_fmt = args.format
@@ -267,7 +253,6 @@ def cli() -> None:
             images=args.images,
             forblack=args.forblack,
             template_file=args.template,
-            hover=args.hover_for_all_moves,
         )
     else:
         print(

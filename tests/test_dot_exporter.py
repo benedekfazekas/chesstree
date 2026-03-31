@@ -191,10 +191,10 @@ class TestGroupIntoBlocks:
 
 class TestDotFunctional:
     def _dot(self, path: pathlib.Path, **kwargs) -> str:
-        dot, _, _ = export_dot(_load(path), **kwargs)
+        dot, _ = export_dot(_load(path), **kwargs)
         return dot
 
-    def _dot_and_images(self, path: pathlib.Path, **kwargs) -> tuple[str, dict, dict]:
+    def _dot_and_images(self, path: pathlib.Path, **kwargs) -> tuple[str, dict]:
         return export_dot(_load(path), **kwargs)
 
     def test_output_is_valid_digraph(self):
@@ -228,7 +228,7 @@ class TestDotFunctional:
 
 { This is the game intro. } 1. e4 e5 *
 """
-        dot, _, _ = export_dot(_load_pgn_str(pgn))
+        dot, _ = export_dot(_load_pgn_str(pgn))
         assert "<i>" in dot
         assert "This is the game intro." in dot
 
@@ -241,7 +241,7 @@ class TestDotFunctional:
 
 1. e4 e5 *
 """
-        dot, _, _ = export_dot(_load_pgn_str(pgn))
+        dot, _ = export_dot(_load_pgn_str(pgn))
         assert "<i>" not in dot
 
     def test_root_node_game_comment_strips_clk(self):
@@ -253,7 +253,7 @@ class TestDotFunctional:
 
 { [%clk 0:05:00] Opening commentary. } 1. e4 *
 """
-        dot, _, _ = export_dot(_load_pgn_str(pgn))
+        dot, _ = export_dot(_load_pgn_str(pgn))
         assert "Opening commentary." in dot
         assert "%clk" not in dot
 
@@ -266,7 +266,7 @@ class TestDotFunctional:
 
 { [%clk 0:05:00] } 1. e4 *
 """
-        dot, _, _ = export_dot(_load_pgn_str(pgn))
+        dot, _ = export_dot(_load_pgn_str(pgn))
         assert "<i>" not in dot
 
     def test_main_segments_present(self):
@@ -340,110 +340,59 @@ class TestDotImages:
     """Tests for image generation in DOT output."""
 
     def test_none_mode_returns_empty_images(self):
-        dot, images, _ = export_dot(_load(LISPERER), image_modes=frozenset(["none"]))
+        dot, images = export_dot(_load(LISPERER), image_modes=frozenset(["none"]))
         assert images == {}
         assert "IMG" not in dot
 
     def test_empty_modes_returns_no_images(self):
-        dot, images, _ = export_dot(_load(LISPERER), image_modes=frozenset())
+        dot, images = export_dot(_load(LISPERER), image_modes=frozenset())
         assert images == {}
         assert "IMG" not in dot
 
     def test_all_mode_returns_images(self):
-        dot, images, _ = export_dot(_load(LISPERER), image_modes=frozenset(["all"]))
+        dot, images = export_dot(_load(LISPERER), image_modes=frozenset(["all"]))
         assert len(images) > 0
         for filename in images:
             assert filename.endswith(".svg")
             assert filename.startswith("n")
 
     def test_variations_mode_returns_images(self):
-        dot, images, _ = export_dot(_load(LISPERER), image_modes=frozenset(["variations"]))
+        dot, images = export_dot(_load(LISPERER), image_modes=frozenset(["variations"]))
         assert len(images) > 0
 
     def test_all_mode_produces_img_rows_in_dot(self):
-        dot, images, _ = export_dot(_load(LISPERER), image_modes=frozenset(["all"]))
+        dot, images = export_dot(_load(LISPERER), image_modes=frozenset(["all"]))
         assert "<IMG" in dot
         assert "fixedsize" in dot
 
     def test_image_filenames_referenced_in_dot(self):
-        dot, images, _ = export_dot(_load(LISPERER), image_modes=frozenset(["variations"]))
+        dot, images = export_dot(_load(LISPERER), image_modes=frozenset(["variations"]))
         for filename in images:
             assert filename in dot
 
     def test_svg_content_is_valid_svg(self):
-        _, images, _ = export_dot(_load(LISPERER), image_modes=frozenset(["variations"]))
+        _, images = export_dot(_load(LISPERER), image_modes=frozenset(["variations"]))
         for content in images.values():
             assert content.startswith("<svg") or "<?xml" in content
 
     def test_all_mode_more_images_than_variations(self):
-        _, images_all, _ = export_dot(_load(LISPERER), image_modes=frozenset(["all"]))
-        _, images_var, _ = export_dot(_load(LISPERER), image_modes=frozenset(["variations"]))
+        _, images_all = export_dot(_load(LISPERER), image_modes=frozenset(["all"]))
+        _, images_var = export_dot(_load(LISPERER), image_modes=frozenset(["variations"]))
         assert len(images_all) >= len(images_var)
 
     def test_commented_mode_returns_images_for_commented_blocks(self):
-        dot, images, _ = export_dot(_load(LISPERER), image_modes=frozenset(["commented"]))
+        dot, images = export_dot(_load(LISPERER), image_modes=frozenset(["commented"]))
         # lisperer has comments; should produce at least one image
         assert len(images) > 0
 
     def test_variations_and_commented_combined(self):
-        _, images_var, _ = export_dot(_load(LISPERER), image_modes=frozenset(["variations"]))
-        _, images_comb, _ = export_dot(
+        _, images_var = export_dot(_load(LISPERER), image_modes=frozenset(["variations"]))
+        _, images_comb = export_dot(
             _load(LISPERER), image_modes=frozenset(["variations", "commented"])
         )
         assert len(images_comb) >= len(images_var)
 
     def test_image_filenames_are_stable(self):
-        _, images1, _ = export_dot(_load(LISPERER), image_modes=frozenset(["all"]))
-        _, images2, _ = export_dot(_load(LISPERER), image_modes=frozenset(["all"]))
+        _, images1 = export_dot(_load(LISPERER), image_modes=frozenset(["all"]))
+        _, images2 = export_dot(_load(LISPERER), image_modes=frozenset(["all"]))
         assert set(images1.keys()) == set(images2.keys())
-
-
-class TestHoverMode:
-    """Tests for per-move hover board image feature."""
-
-    def test_hover_returns_three_tuple(self):
-        result = export_dot(_load(LISPERER), hover=True)
-        assert len(result) == 3
-
-    def test_hover_off_returns_empty_hover_dict(self):
-        _, _inline, hover = export_dot(_load(LISPERER), hover=False)
-        assert hover == {}
-
-    def test_hover_on_returns_non_empty_hover_dict(self):
-        _, _inline, hover = export_dot(_load(LISPERER), hover=True)
-        assert len(hover) > 0
-
-    def test_hover_dict_keys_are_fenhashes(self):
-        _, _inline, hover = export_dot(_load(LISPERER), hover=True)
-        for key in hover:
-            assert key.startswith("n"), f"Key {key!r} should start with 'n'"
-            assert len(key) == 9, f"Key {key!r} should be 9 chars (n + 8 hex)"
-
-    def test_hover_dict_values_are_svg(self):
-        _, _inline, hover = export_dot(_load(LISPERER), hover=True)
-        for val in hover.values():
-            assert val.startswith("<svg"), f"Value should be SVG, got: {val[:40]!r}"
-
-    def test_hover_dot_contains_href_anchors(self):
-        dot, _inline, hover = export_dot(_load(LISPERER), hover=True)
-        assert "#hover-" in dot
-
-    def test_hover_dot_href_keys_match_hover_dict(self):
-        dot, _inline, hover = export_dot(_load(LISPERER), hover=True)
-        import re
-        found = set(re.findall(r'href="#hover-(\w+)"', dot))
-        assert found == set(hover.keys())
-
-    def test_non_hover_dot_has_no_href_anchors(self):
-        dot, _inline, _hover = export_dot(_load(LISPERER), hover=False)
-        assert "#hover-" not in dot
-
-    def test_hover_non_hover_same_structure_otherwise(self):
-        """Non-hover DOT should still have moves in td cells, just not one per move."""
-        dot_plain, _, _ = export_dot(_load(LISPERER), hover=False)
-        dot_hover, _, _ = export_dot(_load(LISPERER), hover=True)
-        # Both should have graphviz basics
-        assert "digraph" in dot_plain
-        assert "digraph" in dot_hover
-        assert "rankdir=LR" in dot_plain
-        assert "rankdir=LR" in dot_hover
