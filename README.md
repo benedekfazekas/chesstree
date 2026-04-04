@@ -4,10 +4,11 @@ A command-line tool for converting chess games between PGN, JSON, EDN, GraphViz 
 
 ## Output format
 
-The tool produces a JSON (or EDN) object with three top-level keys:
+The tool produces a JSON (or EDN) object with four top-level keys:
 
 ```json
 {
+  "schema_version": "0.1.0",
   "headers": { "White": "Alice", "Black": "Bob", "Result": "1-0", ... },
   "moves": [
     {

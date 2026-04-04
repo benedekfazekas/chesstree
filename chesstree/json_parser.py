@@ -82,6 +82,8 @@ def parse_json(json_data: dict) -> chess.pgn.Game:
     Parse a JSON dict (as produced by JsonExporter) into a chess.pgn.Game.
 
     Board images (board_img_before / board_img_after) are ignored.
+    The ``schema_version`` field is tolerated whether present or absent
+    (pre-versioned files simply omit it).
     EDN input is not supported; pass a Python dict parsed from JSON.
     """
     game = chess.pgn.Game()

@@ -45,6 +45,24 @@ class TestJsonExporter:
         data = json.loads(result)
         assert isinstance(data, dict)
 
+    def test_schema_version_present(self):
+        game = _parse_game(SIMPLE_PGN)
+        exporter = JsonExporter()
+        data = json.loads(game.accept(exporter))
+        assert data["schema_version"] == "0.1.0"
+
+    def test_schema_version_is_first_key(self):
+        game = _parse_game(SIMPLE_PGN)
+        exporter = JsonExporter()
+        data = json.loads(game.accept(exporter))
+        assert list(data.keys())[0] == "schema_version"
+
+    def test_schema_version_in_edn(self):
+        game = _parse_game(SIMPLE_PGN)
+        exporter = JsonExporter(edn=True)
+        result = game.accept(exporter)
+        assert result.startswith('{:schema-version "0.1.0"')
+
     def test_headers_included(self):
         game = _parse_game(SIMPLE_PGN)
         exporter = JsonExporter(headers=True)
@@ -100,6 +118,7 @@ class TestJsonExporter:
         exporter = JsonExporter(edn=True)
         result = game.accept(exporter)
         assert result.startswith("{")
+        assert ":schema-version" in result
         assert ":headers" in result
         assert ":moves" in result
 

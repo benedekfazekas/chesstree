@@ -185,6 +185,7 @@ class JsonExporter(BaseVisitor[str]):
 
     def reset_game(self) -> None:
         self.game_data: dict = {
+            "schema_version": "0.1.0",
             "headers": {},
             "moves": [],
             "result": None,
