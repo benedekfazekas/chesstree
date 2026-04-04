@@ -4,28 +4,9 @@ A command-line tool for converting chess games between PGN, JSON, EDN, GraphViz 
 
 ## Output format
 
-The tool produces a JSON (or EDN) object with four top-level keys:
+The tool produces a JSON (or EDN) object with four top-level keys: `schema_version`, `headers`, `moves`, and `result`. Each move entry carries SAN/UCI notation, FEN positions before and after, and optional annotations (comments, NAGs, clock, eval, arrows). Variations appear inline as `{ "variation": [ ... ], "branch_fen": "<FEN>" }` entries.
 
-```json
-{
-  "schema_version": "0.1.0",
-  "headers": { "White": "Alice", "Black": "Bob", "Result": "1-0", ... },
-  "moves": [
-    {
-      "move_number": 1,
-      "turn": "white",
-      "san": "e4",
-      "uci": "e2e4",
-      "fen_before": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
-      "fen_after": "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1"
-    },
-    ...
-  ],
-  "result": "1-0"
-}
-```
-
-Variations appear inline as `{ "variation": [ ... ], "branch_fen": "<FEN>" }` entries within the `moves` array, where `branch_fen` is the board position from which the variation's moves are played.
+For the full normative specification — required vs optional fields, exact types, variation placement rules, NAG encoding, comment normalization, fidelity guarantees, and versioning contract — see **[docs/schema.md](docs/schema.md)**.
 
 ---
 
