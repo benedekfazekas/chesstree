@@ -57,8 +57,8 @@ class SchemaValidator:
             f"{path}: schema_version should be str",
         )
         self.check(
-            data.get("schema_version") == "0.1.0",
-            f"{path}: schema_version should be '0.1.0'",
+            data.get("schema_version") == "1.0.0",
+            f"{path}: schema_version should be '1.0.0'",
         )
 
         r = data.get("result")

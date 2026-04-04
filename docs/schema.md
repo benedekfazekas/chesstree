@@ -1,6 +1,6 @@
 # chesstree JSON/EDN Schema Specification
 
-**Schema version:** `0.1.0`
+**Schema version:** `1.0.0`
 
 This document is the normative specification for the JSON and EDN output produced
 by `chesstree`. It defines every field, its type, whether it is required or
@@ -36,7 +36,7 @@ The top-level value is a JSON object (EDN map) with four required fields:
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `schema_version` | string | **yes** | SemVer version of this schema (currently `"0.1.0"`). |
+| `schema_version` | string | **yes** | SemVer version of this schema (currently `"1.0.0"`). |
 | `headers` | object | **yes** | PGN header tag pairs. May be empty (`{}`) if headers were suppressed. |
 | `moves` | array | **yes** | Ordered list of [move entries](#3-move-entry) and [variation wrappers](#4-variation-wrapper). |
 | `result` | string \| null | **yes** | Game termination marker: `"1-0"`, `"0-1"`, `"1/2-1/2"`, `"*"`, or `null`. |
@@ -496,17 +496,14 @@ string (e.g. `"0.1.0"`, `"1.0.0"`).
 
 ### Current version
 
-The current schema version is **`0.1.0`**.
+The current schema version is **`1.0.0`**.
 
-### Pre-1.0 stability
+### Stability
 
-While the schema version has a `0.x.y` major version, the schema is considered
-**unstable**. Breaking changes may occur between minor versions. Consumers
-should pin to a specific version and check `schema_version` before parsing.
+The schema is **stable** as of `1.0.0`. The backward compatibility contract
+below is now in effect.
 
-### Version numbering rules (post-1.0)
-
-Once the schema reaches `1.0.0`:
+### Version numbering rules
 
 | Change type | Version bump | Examples |
 |-------------|-------------|----------|
@@ -514,7 +511,7 @@ Once the schema reaches `1.0.0`:
 | Non-breaking: add optional field | **MINOR** | Adding a new optional field to move entries |
 | Bug fix: correct a wrong value | **PATCH** | Fixing an incorrect FEN computation |
 
-### Compatibility contract (post-1.0)
+### Compatibility contract
 
 1. **New optional fields may appear** in any minor release. Consumers **must**
    ignore keys they do not recognise (open content model).
@@ -544,7 +541,7 @@ Optional fields are shown where they occur naturally.
 
 ```json
 {
-  "schema_version": "0.1.0",
+  "schema_version": "1.0.0",
   "headers": {
     "Event": "Dortmund Sparkassen",
     "Site": "Dortmund GER",
@@ -627,7 +624,7 @@ Optional fields are shown where they occur naturally.
 ### EDN equivalent (excerpt)
 
 ```edn
-{:schema-version "0.1.0"
+{:schema-version "1.0.0"
  :headers {:Event "Dortmund Sparkassen"
            :White "Vladimir Kramnik"
            :Black "Anatoly Karpov"

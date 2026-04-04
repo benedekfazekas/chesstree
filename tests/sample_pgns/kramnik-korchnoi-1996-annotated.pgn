@@ -1,0 +1,21 @@
+[Event "12th ECC final"]
+[Site "Budapest HUN"]
+[Date "1996.11.21"]
+[Round "1"]
+[White "Vladimir Kramnik"]
+[Black "Viktor Korchnoi"]
+[Result "1-0"]
+[WhiteElo "2765"]
+[BlackElo "2635"]
+[Variant "Standard"]
+[ECO "D24"]
+[Opening "Queen's Gambit Accepted: Bogoljubow Defense"]
+[StudyName "Kramnik Games"]
+[ChapterName "Kramnik-Korchnoi 1996"]
+[ChapterURL "https://lichess.org/study/YEYKDn7Q/4opnrZsZ"]
+[Annotator "https://lichess.org/@/njswift"]
+
+{ This Queen's Gambit Accepted was played in the European Club Cup in Budapest in 1996. The white queen takes an incredible and productive journey from d1-g4-e4-f3-g3-g4-f5-h3-f5-c5-c7-c4-e4-c6-e8-h8 and eventually returns. }
+1. Nf3 d5 2. d4 Nf6 3. c4 dxc4 4. Nc3 a6 5. e4 b5 6. e5 Nd5 7. a4 e6 8. axb5 Nb6 9. Be3!? Bb4 10. Nd2 { This is not so much to attack the c pawn as to open a route for the white queen to the kingside which is devoid of pieces. } 10... axb5 11. Rxa8 Nxa8 12. Qg4 { [%csl Ra8,Rb8,Gc8,Gb4][%cal Gg4g7] } 12... Kf8 { Black should have interposed Bxc3 first to save the b pawn. } 13. Nxb5 Nb6 14. Nc3 Nc6 15. Be2! { The tempo and ability to castle is more important than the c pawn. } 15... h5 16. Qe4 Bb7 17. O-O g6 (17... Na5 18. Qc2 $16) 18. Bf3 { White decides to give up the c pawn in order to activate its pieces. } 18... Kg7 19. Qf4 { White's queen moves herself out of danger and prevents the h8 rook from leaving. } { [%cal Rh8e8,Gf4h6,Ge3h6,Rb7e4] } 19... Be7 20. Rd1 { Kramnik acknowledges the computer suggestion Ra1 "suggests itself" but insists that the a file is of secondary importance to play in the center. } 20... Ba8 21. d5! { Kramnik: "Even without calculating all the variations to the end, I sensed intuitively that I would gain a strong initiative." } 21... g5 22. Qg3 h4 23. Qg4 Nxe5 24. Bd4 Bf6 25. Bxe5 Bxe5 26. dxe6 f5? 27. Qxf5 Qf6 28. Qh3 { If white plays Qg4 then black can press the exchange of queens with Qf4. } 28... Bxc3 29. bxc3 Qxc3 30. Qf5 Qf6 31. Qc5 Kh6 32. Qxc7 Nd5 33. Qxc4 Nf4 34. Ne4 Bxe4 35. Qxe4 Re8 36. Bg4 Nxe6 37. Qc6 Qg6 38. Bf5 { [%cal Gc6e8] } 38... Qxf5 39. Qxe8 g4 40. Re1 Ng5 41. Qh8+ Nh7 42. Qe5 Qg6 43. Qf4+ Kh5 44. h3 gxh3 45. Re5+ Ng5 46. gxh3 Qf6 47. Qg4+ Kg6 48. Rxg5+ Qxg5 49. f4! { 1-0 Black resigns. } 1-0
+
+
