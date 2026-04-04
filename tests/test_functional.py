@@ -10,6 +10,7 @@ from __future__ import annotations
 import io
 import json
 import pathlib
+import warnings
 from typing import Iterator
 
 import chess.pgn
@@ -303,6 +304,48 @@ class TestRoundTrip:
         assert c5_var.starting_comment == "The Sicilian is also popular."
         assert str(game1) == str(game2)
 
+    def test_parse_json_does_not_warn_for_current_schema_version(self):
+        game = _load_game(LISPERER)
+        data = json.loads(game.accept(JsonExporter(headers=True, comments=True, variations=True)))
+
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            parse_json(data)
+
+        assert caught == []
+
+    def test_parse_json_warns_when_schema_version_is_missing(self):
+        game = _load_game(LISPERER)
+        data = json.loads(game.accept(JsonExporter(headers=True, comments=True, variations=True)))
+        del data["schema_version"]
+
+        with pytest.warns(
+            UserWarning,
+            match=r"missing schema_version",
+        ):
+            parse_json(data)
+
+    def test_parse_json_warns_when_schema_version_is_newer(self):
+        game = _load_game(LISPERER)
+        data = json.loads(game.accept(JsonExporter(headers=True, comments=True, variations=True)))
+        data["schema_version"] = "1.1.0"
+
+        with pytest.warns(
+            UserWarning,
+            match=r"schema_version 1\.1\.0 is newer than the supported schema 1\.0\.0",
+        ):
+            parse_json(data)
+
+    def test_parse_json_does_not_warn_for_newer_patch_version(self):
+        game = _load_game(LISPERER)
+        data = json.loads(game.accept(JsonExporter(headers=True, comments=True, variations=True)))
+        data["schema_version"] = "1.0.1"
+
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            parse_json(data)
+
+        assert caught == []
 
 # ---------------------------------------------------------------------------
 # Clock-annotated game: gergeshain-vs-lisperer

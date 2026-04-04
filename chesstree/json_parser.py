@@ -1,12 +1,52 @@
 from __future__ import annotations
 
 import json
-from typing import List, Optional, TextIO
+import re
+import warnings
+from typing import List, Optional, TextIO, Tuple
 
 import chess
 import chess.engine
 import chess.pgn
 import chess.svg
+
+_CURRENT_SCHEMA_VERSION = "1.0.0"
+_SEMVER_RE = re.compile(r"^(\d+)\.(\d+)\.(\d+)$")
+
+
+def _parse_semver(version: object) -> Optional[Tuple[int, int, int]]:
+    if not isinstance(version, str):
+        return None
+
+    match = _SEMVER_RE.fullmatch(version)
+    if match is None:
+        return None
+
+    return tuple(int(part) for part in match.groups())
+
+
+def _warn_on_schema_version(json_data: dict) -> None:
+    schema_version = json_data.get("schema_version")
+    if schema_version is None:
+        warnings.warn(
+            f"Input JSON is missing schema_version; assuming schema {_CURRENT_SCHEMA_VERSION}.",
+            stacklevel=2,
+        )
+        return
+
+    parsed_version = _parse_semver(schema_version)
+    current_version = _parse_semver(_CURRENT_SCHEMA_VERSION)
+    if (
+        parsed_version is not None
+        and current_version is not None
+        and parsed_version[:2] > current_version[:2]
+    ):
+        warnings.warn(
+            "Input JSON schema_version "
+            f"{schema_version} is newer than the supported schema "
+            f"{_CURRENT_SCHEMA_VERSION}; parsing may be incomplete.",
+            stacklevel=2,
+        )
 
 
 def _process_moves(
@@ -99,10 +139,13 @@ def parse_json(json_data: dict) -> chess.pgn.Game:
     Parse a JSON dict (as produced by JsonExporter) into a chess.pgn.Game.
 
     Board images (board_img_before / board_img_after) are ignored.
-    The ``schema_version`` field is tolerated whether present or absent
-    (pre-versioned files simply omit it).
+    The ``schema_version`` field is tolerated whether present or absent.
+    Missing versions emit a warning, and newer schema versions emit a
+    warning that parsing may be incomplete.
     EDN input is not supported; pass a Python dict parsed from JSON.
     """
+    _warn_on_schema_version(json_data)
+
     game = chess.pgn.Game()
 
     # Replace chess.pgn's default headers with those stored in the JSON.
