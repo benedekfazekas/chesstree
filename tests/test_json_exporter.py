@@ -67,7 +67,7 @@ class TestJsonExporter:
         game = _parse_game(SIMPLE_PGN)
         exporter = JsonExporter()
         data = json.loads(game.accept(exporter))
-        assert data["schema_version"] == "0.1.0"
+        assert data["schema_version"] == "1.0.0"
 
     def test_schema_version_is_first_key(self):
         game = _parse_game(SIMPLE_PGN)
@@ -79,7 +79,7 @@ class TestJsonExporter:
         game = _parse_game(SIMPLE_PGN)
         exporter = JsonExporter(edn=True)
         result = game.accept(exporter)
-        assert result.startswith('{:schema-version "0.1.0"')
+        assert result.startswith('{:schema-version "1.0.0"')
 
     def test_headers_included(self):
         game = _parse_game(SIMPLE_PGN)
