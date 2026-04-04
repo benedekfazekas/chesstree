@@ -50,6 +50,32 @@ class TestGameTitle:
         # some date-like string should be present
         assert "at" in title
 
+    def test_falls_back_to_date_header(self):
+        game = chess.pgn.Game()
+        game.headers["White"] = "Alice"
+        game.headers["Black"] = "Bob"
+        game.headers["Date"] = "2023.06.01"
+        title = _game_title(game)
+        assert "at 2023.06.01" in title
+
+    def test_utcdate_takes_precedence_over_date(self):
+        game = chess.pgn.Game()
+        game.headers["White"] = "Alice"
+        game.headers["Black"] = "Bob"
+        game.headers["UTCDate"] = "2024.01.15"
+        game.headers["Date"] = "2023.06.01"
+        title = _game_title(game)
+        assert "at 2024.01.15" in title
+        assert "2023.06.01" not in title
+
+    def test_omits_date_when_missing(self):
+        game = chess.pgn.Game()
+        game.headers["White"] = "Alice"
+        game.headers["Black"] = "Bob"
+        title = _game_title(game)
+        assert "Alice vs Bob" in title
+        assert " at " not in title
+
 
 class TestBuildAddImages:
     def test_empty_dict(self):

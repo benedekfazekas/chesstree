@@ -29,11 +29,12 @@ def _game_title(game: chess.pgn.Game) -> str:
     headers = game.headers
     white = headers.get("White")
     black = headers.get("Black")
-    date = headers.get("UTCDate") or headers.get("Date") or "unknown date"
+    raw_date = headers.get("UTCDate") or headers.get("Date") or None
+    date = raw_date if raw_date and "?" not in raw_date else None
     if white and black and white != "?" and black != "?":
-        return f"{white} vs {black} at {date}"
+        return f"{white} vs {black} at {date}" if date else f"{white} vs {black}"
     event = headers.get("Event", "?")
-    return f"{event} at {date}"
+    return f"{event} at {date}" if date else event
 
 
 def _build_add_images(images: dict[str, str]) -> str:

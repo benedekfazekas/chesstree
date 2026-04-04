@@ -219,6 +219,23 @@ class TestDotFunctional:
         dot = self._dot(HILLBILLY)
         assert "caro-kann, hillbilly: hillbilly" in dot
 
+    def test_root_node_title_uses_utcdate(self):
+        pgn = '[White "Alice"]\n[Black "Bob"]\n[UTCDate "2024.01.15"]\n[Result "*"]\n\n1. e4 *\n'
+        dot, _ = export_dot(_load_pgn_str(pgn))
+        assert "at 2024.01.15" in dot
+
+    def test_root_node_title_falls_back_to_date(self):
+        pgn = '[White "Alice"]\n[Black "Bob"]\n[Date "2023.06.01"]\n[Result "*"]\n\n1. e4 *\n'
+        dot, _ = export_dot(_load_pgn_str(pgn))
+        assert "at 2023.06.01" in dot
+
+    def test_root_node_title_omits_date_when_missing(self):
+        pgn = '[White "Alice"]\n[Black "Bob"]\n[Result "*"]\n\n1. e4 *\n'
+        dot, _ = export_dot(_load_pgn_str(pgn))
+        assert "Alice vs Bob" in dot
+        assert " at " not in dot
+        assert "null" not in dot
+
     def test_root_node_game_comment_in_italic(self):
         pgn = """\
 [Event "Test"]

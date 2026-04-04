@@ -231,13 +231,14 @@ class _DotBuilder:
         headers = self.game.headers
         white = headers.get("White")
         black = headers.get("Black")
-        date = headers.get("UTCDate") or "null"
+        raw_date = headers.get("UTCDate") or headers.get("Date") or None
+        date = raw_date if raw_date and "?" not in raw_date else None
 
         if white and black and white != "?" and black != "?":
-            title = f"{white} vs {black} at {date}"
+            title = f"{white} vs {black} at {date}" if date else f"{white} vs {black}"
         else:
             event = headers.get("Event", "?")
-            title = f"{event} at {date}"
+            title = f"{event} at {date}" if date else event
 
         event = headers.get("Event", "?")
         site = headers.get("Site", "?")
