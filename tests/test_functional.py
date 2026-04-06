@@ -410,3 +410,81 @@ class TestGergeshainLisperer:
         assert len(images_commented) < len(images_all), (
             f"commented mode ({len(images_commented)}) should produce fewer DOT SVGs than all mode ({len(images_all)})"
         )
+
+
+# ---------------------------------------------------------------------------
+# D3HTML output: functional tests
+# ---------------------------------------------------------------------------
+
+from chesstree.d3html_exporter import export_d3html
+
+
+class TestD3htmlFunctional:
+    """End-to-end tests for the d3html output format using real PGN samples."""
+
+    def test_hillbilly_produces_html(self):
+        game = _load_game(HILLBILLY)
+        html, _ = export_d3html(game)
+        assert "<!DOCTYPE html>" in html
+        assert "</html>" in html
+
+    def test_lisperer_produces_html(self):
+        game = _load_game(LISPERER)
+        html, _ = export_d3html(game)
+        assert "<!DOCTYPE html>" in html
+
+    def test_caro_kann_produces_html(self):
+        game = _load_game(CARO_KANN)
+        html, _ = export_d3html(game)
+        assert "<!DOCTYPE html>" in html
+
+    def test_d3js_cdn_reference_present(self):
+        game = _load_game(LISPERER)
+        html, _ = export_d3html(game)
+        assert "d3js.org" in html
+
+    def test_tree_data_is_valid_json(self):
+        import re
+        game = _load_game(LISPERER)
+        html, _ = export_d3html(game)
+        m = re.search(r'JSON\.parse\(`(.*?)`\)', html, re.DOTALL)
+        assert m is not None, "JSON.parse(`...`) not found in HTML"
+        raw = m.group(1).replace("\\`", "`").replace("\\\\", "\\").replace("\\${", "${")
+        data = json.loads(raw)
+        assert data["type"] == "root"
+        assert len(data["children"]) > 0
+
+    def test_variations_mode_produces_svg_images(self):
+        game = _load_game(HILLBILLY)
+        _, images = export_d3html(game, image_modes=frozenset(["variations"]))
+        assert len(images) > 0
+        for name, content in images.items():
+            assert name.endswith(".svg")
+            assert "<svg" in content
+
+    def test_none_mode_produces_no_images(self):
+        game = _load_game(HILLBILLY)
+        _, images = export_d3html(game, image_modes=frozenset(["none"]))
+        assert images == {}
+
+    def test_all_mode_produces_more_images_than_variations(self):
+        game = _load_game(LISPERER)
+        _, imgs_all = export_d3html(game, image_modes=frozenset(["all"]))
+        _, imgs_var = export_d3html(game, image_modes=frozenset(["variations"]))
+        assert len(imgs_all) >= len(imgs_var)
+
+    def test_hover_mode_embeds_hover_data(self):
+        game = _load_game(LISPERER)
+        html, _ = export_d3html(game, hover=True)
+        assert "hoverEnabled = true" in html
+        assert "hoverImages" in html
+
+    def test_gergeshain_clock_annotations_not_in_output(self):
+        game = _load_game(GERGESHAIN)
+        html, _ = export_d3html(game, image_modes=frozenset(["none"]))
+        assert "[%clk" not in html
+
+    def test_gergeshain_game_comment_in_output(self):
+        game = _load_game(GERGESHAIN)
+        html, _ = export_d3html(game, image_modes=frozenset(["none"]))
+        assert "opening mistake" in html

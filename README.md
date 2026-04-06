@@ -1,6 +1,6 @@
 # chesstree
 
-A command-line tool for converting chess games between PGN, JSON, EDN, GraphViz DOT, and interactive HTML formats. It accepts PGN or chesstree JSON as input (auto-detected from the file extension) and can output JSON, EDN, PGN, DOT, or dothtml via the `-f`/`--format` flag. JSON output includes move number, SAN and UCI notation, FEN positions, comments, NAGs, and variations. DOT output models the game tree as a left-to-right digraph suitable for rendering with GraphViz tools. The dothtml format wraps the DOT graph in a self-contained browser viewer powered by [d3-graphviz](https://github.com/magjac/d3-graphviz), with pan, zoom, and board images included.
+A command-line tool for converting chess games between PGN, JSON, EDN, GraphViz DOT, and interactive HTML formats. It accepts PGN or chesstree JSON as input (auto-detected from the file extension) and can output JSON, EDN, PGN, DOT, dothtml, or d3html via the `-f`/`--format` flag. JSON output includes move number, SAN and UCI notation, FEN positions, comments, NAGs, and variations. DOT output models the game tree as a left-to-right digraph suitable for rendering with GraphViz tools. The `dothtml` format wraps the DOT graph in a self-contained browser viewer powered by [d3-graphviz](https://github.com/magjac/d3-graphviz), with pan, zoom, and board images included. The `d3html` format produces a purpose-built interactive D3.js tree viewer with collapsible nodes, variation highlighting, optional hover board images, and a dark-themed layout — no GraphViz dependency required.
 
 ## Output format
 
@@ -69,28 +69,33 @@ The `chesstree` command is available whenever the virtual environment is active.
 ## Usage
 
 ```
-usage: chesstree [-h] [--version] -i INPUT [-o OUTPUT] [-f {json,edn,pgn,dot,dothtml}]
+usage: chesstree [-h] [--version] -i INPUT [-o OUTPUT] [-f {json,edn,pgn,dot,dothtml,d3html}]
                  [--input-format {pgn,json}] [-b] [--images MODE [MODE ...]]
-                 [--template FILE] [-c]
+                 [--template FILE] [-a] [--no-move-highlight] [-c]
 
 options:
-  -h, --help                              show this help message and exit
-  --version                               show program's version number and exit
-  -i, --input INPUT                       Input file — PGN or chesstree JSON (use '-' for stdin)
-  -o, --output OUTPUT                     Output file (default: stdout)
-  -f, --format {json,edn,pgn,dot,dothtml} Output format: json (default), edn, pgn, dot, or dothtml
-  --input-format {pgn,json}               Override auto-detected input format
-  -b, --forblack                          Board images from Black's perspective (dot/dothtml)
-  --images MODE [MODE ...]                Image generation mode for dot/dothtml output (default: variations)
-                                          Choices: none, all, variations, commented.
-                                          'variations' and 'commented' may be combined.
-                                          SVG files are written alongside the output file;
-                                          stdout skips writing SVGs.
-                                          Has no effect on json/edn output.
-  --template FILE                         Custom HTML template for dothtml output.
-                                          Must contain {{CHESSTREE_TITLE}}, {{CHESSTREE_IMAGES}},
-                                          and {{CHESSTREE_DOT}} placeholders. Only used with -f dothtml.
-  -c, --concise                           Compact output, no pretty-printing (json/edn output only)
+  -h, --help                                     show this help message and exit
+  --version                                      show program's version number and exit
+  -i, --input INPUT                              Input file — PGN or chesstree JSON (use '-' for stdin)
+  -o, --output OUTPUT                            Output file (default: stdout)
+  -f, --format {json,edn,pgn,dot,dothtml,d3html} Output format: json (default), edn, pgn, dot, dothtml, or d3html
+  --input-format {pgn,json}                      Override auto-detected input format
+  -b, --forblack                                 Board images from Black's perspective (dot/dothtml/d3html)
+  --images MODE [MODE ...]                       Image generation mode for dot/dothtml/d3html output (default: variations)
+                                                 Choices: none, all, variations, commented.
+                                                 'variations' and 'commented' may be combined.
+                                                 SVG files are written alongside the output file;
+                                                 stdout skips writing SVGs.
+                                                 Has no effect on json/edn output.
+  --template FILE                                Custom HTML template for dothtml or d3html output.
+                                                 Must contain the required placeholders for the chosen format.
+                                                 Only used with -f dothtml or -f d3html.
+  -a, --hover-for-all-moves                      Embed per-move hover board images (d3html only).
+                                                 Mouseover a move to see the board position in a popup.
+  --no-move-highlight                            Disable last-move square highlighting on board images.
+                                                 By default the from/to squares of the last move are
+                                                 coloured on every board image (dot/dothtml/d3html).
+  -c, --concise                                  Compact output, no pretty-printing (json/edn output only)
 ```
 
 The input format is auto-detected from the file extension (`.pgn` → PGN, `.json` → chesstree JSON). Use `--input-format` to override this when reading from stdin or a file with an unusual extension.
@@ -103,9 +108,11 @@ Supported conversions:
 | PGN   | `edn`             | chesstree EDN  |
 | PGN   | `dot`             | GraphViz DOT   |
 | PGN   | `dothtml`         | Self-contained d3-graphviz HTML viewer |
+| PGN   | `d3html`          | Self-contained D3.js interactive tree viewer |
 | JSON  | `pgn`             | PGN            |
 | JSON  | `dot`             | GraphViz DOT   |
 | JSON  | `dothtml`         | Self-contained d3-graphviz HTML viewer |
+| JSON  | `d3html`          | Self-contained D3.js interactive tree viewer |
 
 ### Examples
 
@@ -185,6 +192,18 @@ Omit all board images:
 chesstree -i game.pgn -f dot -o game.dot --images none
 ```
 
+### Last-move square highlighting
+
+By default, board images colour the **from** and **to** squares of the last move, making it easy to see which piece moved. This applies to all image-bearing formats: `dot`, `dothtml`, and `d3html`.
+
+Use `--no-move-highlight` to produce plain boards without any square colouring:
+
+```bash
+chesstree -i game.pgn -f dothtml -o game.html --no-move-highlight
+chesstree -i game.pgn -f d3html  -o game.html --no-move-highlight
+chesstree -i game.pgn -f dot     -o game.dot  --no-move-highlight
+```
+
 Convert a chesstree JSON file back to PGN:
 
 ```bash
@@ -209,7 +228,7 @@ Export from chesstree JSON to DOT:
 chesstree -i game.json -f dot -o game.dot
 ```
 
-### dothtml output — interactive browser viewer
+### dothtml output — d3-graphviz browser viewer
 
 The `dothtml` format produces a self-contained HTML file that renders the game tree interactively in a browser using [d3-graphviz](https://github.com/magjac/d3-graphviz). Board images are written as SVG files alongside the HTML file, which the browser loads by relative path.
 
@@ -229,7 +248,7 @@ When writing to **stdout**, image references are included in the HTML but no SVG
 chesstree -i game.pgn -f dothtml -o -
 ```
 
-#### Custom HTML template
+#### Custom HTML template (dothtml)
 
 You can supply your own template with `--template`:
 
@@ -241,11 +260,79 @@ The template is plain HTML with three required placeholders:
 
 | Placeholder | Replaced with |
 |-------------|---------------|
-| `{{CHESSTREE_TITLE}}` | Game title string (e.g. "White vs Black at 2024.01.01") — use in `<title>` and any heading |
-| `{{CHESSTREE_IMAGES}}` | One `.addImage("./name.svg", "144px", "144px")` call per image, one per line |
-| `{{CHESSTREE_DOT}}` | The raw DOT string — place this inside the JS backtick template literal assigned to `dot` |
+| `{{CHESSTREE_TITLE}}` | Game title string (e.g. "White vs Black at 2024.01.01") |
+| `{{CHESSTREE_IMAGES}}` | One `.addImage("./name.svg", "144px", "144px")` call per image |
+| `{{CHESSTREE_DOT}}` | The raw DOT string — place inside a JS backtick template literal |
 
-All three placeholders must be present in the template or generation will fail with an error listing which are missing. The built-in template at `chesstree/templates/default.html` in the project source is a good starting point for customisation.
+All three must be present or generation fails with an error listing the missing ones.
+
+---
+
+### d3html output — interactive D3.js tree viewer
+
+The `d3html` format produces a self-contained HTML file with a purpose-built interactive tree viewer powered by [D3.js v7](https://d3js.org). Unlike `dothtml` it does not require GraphViz: the layout and rendering are done entirely in the browser.
+
+```bash
+# Generate HTML viewer + SVG board images in ./output/
+chesstree -i game.pgn -f d3html -o output/game.html
+
+# Open in browser
+open output/game.html
+```
+
+Features of the viewer:
+
+- **Dark theme** with colour-coded nodes: main-line segments (blue) are visually distinct from variation segments (purple).
+- **Node headers** show the line type and move range, e.g. "Main line: 1–12" or "Variation: 8–10".
+- **Collapsible nodes** — click any node to hide its variation children while keeping the main-line continuation visible. A badge in the header shows how many nodes are hidden. Ctrl+click collapses all children including the main-line continuation.
+- **Pan and zoom** via scroll and drag.
+- **Drag-to-reposition** individual nodes.
+- **Hover board images** (optional, see `-a` below).
+- **R key / ↺ Reset button** restores the automatic layout.
+
+#### Board images in d3html
+
+The `--images` flag works the same as for `dot`/`dothtml`:
+
+```bash
+# Default: one image per segment endpoint
+chesstree -i game.pgn -f d3html -o game.html
+
+# Images at both variation endpoints and commented moves
+chesstree -i game.pgn -f d3html -o game.html --images variations commented
+
+# No images (smallest output)
+chesstree -i game.pgn -f d3html -o game.html --images none
+```
+
+SVG files are written alongside the HTML file. When writing to stdout, image references are included but no SVG files are written.
+
+#### Hover board images (`-a`)
+
+The `-a` / `--hover-for-all-moves` flag embeds a miniature board image for every individual move. Hovering over any move token in the tree shows the board position at that move in a popup:
+
+```bash
+chesstree -i game.pgn -f d3html -o game.html -a
+```
+
+This significantly increases file size (one small SVG per move) so it is off by default.
+
+#### Custom HTML template (d3html)
+
+```bash
+chesstree -i game.pgn -f d3html --template my_d3_template.html -o game.html
+```
+
+The d3html template has four required placeholders (different from the dothtml placeholders):
+
+| Placeholder | Replaced with |
+|-------------|---------------|
+| `{{CHESSTREE_TITLE}}` | Game title string |
+| `{{CHESSTREE_TREE_DATA}}` | JSON tree data object (embed inside `JSON.parse(\`...\`)`) |
+| `{{CHESSTREE_IMAGES}}` | JS statements that populate the `boardImages` dict, one per SVG file |
+| `{{CHESSTREE_HOVER_DATA}}` | JS statements that populate the `hoverImages` dict (empty when `-a` not used) |
+
+All four must be present or generation fails.
 
 ### DOT output and board images
 

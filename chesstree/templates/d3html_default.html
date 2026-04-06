@@ -1,0 +1,942 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{CHESSTREE_TITLE}}</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    /* -----------------------------------------------------------------------
+       Theme tokens — dark (default)
+    ----------------------------------------------------------------------- */
+    :root {
+      --bg:            #1a1a2e;
+      --chrome-bg:     #16213e;
+      --chrome-border: #0f3460;
+      --text:          #e0e0e0;
+      --text-muted:    #aaa;
+      --text-faint:    #666;
+      --text-dim:      #888;
+      --btn-bg:        #0f3460;
+      --btn-border:    #533483;
+      --btn-hover:     #533483;
+      --card-bg:       #1e3a6e;
+      --card-border:   #2a5090;
+      --card-hover-border: #533483;
+      --card-hover-shadow: #533483aa;
+      --card-drag-border:  #e94560;
+      --card-drag-shadow:  #e94560aa;
+      --card-collapsed-border: #888;
+      --root-card-bg:  #0f3460;
+      --root-card-border: #533483;
+      --var-card-bg:   #2d1f52;
+      --var-card-border: #4a3070;
+      --var-card-hover-border: #7755aa;
+      --var-card-hover-shadow: #7755aaaa;
+      --var-header-color: #b09ad0;
+      --root-title-color: #fff;
+      --root-meta-color:  #aaa;
+      --root-comment-color: #ccc;
+      --moves-color:   #d0d0d0;
+      --move-num-color: #888;
+      --comment-color: #b0b8c8;
+      --hr-color:      #0f3460;
+      --edge-label-fill: #aaa;
+      --link-main-stroke: #0f3460;
+      --link-var-stroke:  #533483;
+      --popup-border:  #533483;
+      --popup-shadow:  #0009;
+    }
+
+    /* Light theme overrides */
+    :root.light {
+      --bg:            #f0f2f5;
+      --chrome-bg:     #e0e4ed;
+      --chrome-border: #b0bcd4;
+      --text:          #1a1a2e;
+      --text-muted:    #555;
+      --text-faint:    #777;
+      --text-dim:      #666;
+      --btn-bg:        #c8d4ea;
+      --btn-border:    #7755aa;
+      --btn-hover:     #b09ad0;
+      --card-bg:       #ffffff;
+      --card-border:   #b0bcd4;
+      --card-hover-border: #7755aa;
+      --card-hover-shadow: #7755aa44;
+      --card-drag-border:  #e94560;
+      --card-drag-shadow:  #e9456044;
+      --card-collapsed-border: #aaa;
+      --root-card-bg:  #dde4f4;
+      --root-card-border: #7755aa;
+      --var-card-bg:   #f0ebfa;
+      --var-card-border: #c4add8;
+      --var-card-hover-border: #7755aa;
+      --var-card-hover-shadow: #7755aa44;
+      --var-header-color: #5a3a80;
+      --root-title-color: #1a1a2e;
+      --root-meta-color:  #555;
+      --root-comment-color: #444;
+      --moves-color:   #222;
+      --move-num-color: #777;
+      --comment-color: #445;
+      --hr-color:      #b0bcd4;
+      --edge-label-fill: #555;
+      --link-main-stroke: #8899bb;
+      --link-var-stroke:  #9977cc;
+      --popup-border:  #7755aa;
+      --popup-shadow:  #0003;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    header {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      padding: 0.5rem 1rem;
+      background: var(--chrome-bg);
+      border-bottom: 1px solid var(--chrome-border);
+      flex-shrink: 0;
+    }
+
+    header h1 {
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: var(--text);
+      flex: 1;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    header button {
+      background: var(--btn-bg);
+      border: 1px solid var(--btn-border);
+      color: var(--text);
+      padding: 0.25rem 0.65rem;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 0.8rem;
+    }
+    header button:hover { background: var(--btn-hover); }
+
+    #tree-container {
+      flex: 1;
+      overflow: hidden;
+      position: relative;
+    }
+
+    svg#tree-svg {
+      width: 100%;
+      height: 100%;
+      cursor: grab;
+    }
+    svg#tree-svg:active { cursor: grabbing; }
+
+    /* Node cards rendered inside <foreignObject> */
+    .node-card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 6px;
+      padding: 6px 8px;
+      font-size: 0.78rem;
+      line-height: 1.5;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      cursor: pointer;
+      transition: border-color 0.15s, box-shadow 0.15s;
+      user-select: none;
+    }
+    .node-card:hover {
+      border-color: var(--card-hover-border);
+      box-shadow: 0 0 6px var(--card-hover-shadow);
+    }
+    .node-card.collapsed {
+      border-style: dashed;
+      border-color: var(--card-collapsed-border);
+    }
+    .node-card.dragging {
+      border-color: var(--card-drag-border);
+      box-shadow: 0 0 10px var(--card-drag-shadow);
+      cursor: grabbing;
+    }
+
+    /* Root card */
+    .node-card.root-card {
+      background: var(--root-card-bg);
+      border-color: var(--root-card-border);
+    }
+
+    /* Variation card — purple tint to distinguish from main line */
+    .node-card.variation-card {
+      background: var(--var-card-bg);
+      border-color: var(--var-card-border);
+    }
+    .node-card.variation-card:hover {
+      border-color: var(--var-card-hover-border);
+      box-shadow: 0 0 6px var(--var-card-hover-shadow);
+    }
+    .node-card.variation-card .node-header {
+      color: var(--var-header-color);
+    }
+
+    .root-title { font-weight: 700; font-size: 0.85rem; color: var(--root-title-color); }
+    .root-meta  { color: var(--root-meta-color); font-size: 0.72rem; margin-top: 2px; }
+    .root-comment { font-style: italic; color: var(--root-comment-color); margin-top: 4px; font-size: 0.75rem; }
+
+    .moves-line { color: var(--moves-color); word-break: break-word; }
+    .move-num  { color: var(--move-num-color); font-size: 0.72rem; }
+
+    .nag-blunder    { color: #cc2200; font-weight: bold; }
+    .nag-mistake    { color: #e05040; font-weight: bold; }
+    .nag-dubious    { color: #e08020; }
+    .nag-speculative{ color: #f4bc4f; }
+    .nag-good       { color: #84c043; font-weight: bold; }
+    .nag-brilliant  { color: #66ccff; font-weight: bold; }
+
+    .node-comment {
+      font-style: italic;
+      color: var(--comment-color);
+      margin-top: 3px;
+      font-size: 0.74rem;
+      word-break: break-word;
+    }
+
+    .node-image {
+      display: block;
+      width: 100px;
+      height: 100px;
+      margin-top: 4px;
+    }
+
+    .node-header {
+      font-weight: 600;
+      color: var(--text-muted);
+      font-size: 0.7rem;
+      margin-bottom: 2px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .node-header .collapsed-count {
+      font-weight: normal;
+      color: var(--text-dim);
+      font-style: italic;
+    }
+    .node-card hr {
+      border: none;
+      border-top: 1px solid var(--hr-color);
+      margin: 3px 0;
+    }
+
+    /* Edge labels */
+    .edge-label {
+      font-size: 0.72rem;
+      fill: var(--edge-label-fill);
+      pointer-events: none;
+    }
+
+    /* Links */
+    .link-main {
+      fill: none;
+      stroke: var(--link-main-stroke);
+      stroke-width: 1.5px;
+    }
+    .link-variation {
+      fill: none;
+      stroke: var(--link-var-stroke);
+      stroke-width: 1.5px;
+      stroke-dasharray: 4,3;
+    }
+
+    /* Help bar */
+    #help-bar {
+      background: var(--chrome-bg);
+      border-top: 1px solid var(--chrome-border);
+      padding: 3px 1rem;
+      font-size: 0.7rem;
+      color: var(--text-faint);
+      flex-shrink: 0;
+    }
+
+    /* Hover board popup */
+    #hover-popup {
+      display: none;
+      position: fixed;
+      pointer-events: none;
+      border: 1px solid var(--popup-border);
+      border-radius: 6px;
+      overflow: hidden;
+      box-shadow: 0 4px 16px var(--popup-shadow);
+      z-index: 100;
+    }
+    #hover-popup img { display: block; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>{{CHESSTREE_TITLE}}</h1>
+    <button id="btn-theme" title="Toggle light/dark theme">☀ Light</button>
+    <button id="btn-reset" title="Re-run layout (R)">↺ Reset</button>
+  </header>
+
+  <div id="tree-container">
+    <svg id="tree-svg">
+      <g id="zoom-layer">
+        <g id="links-layer"></g>
+        <g id="edge-labels-layer"></g>
+        <g id="nodes-layer"></g>
+      </g>
+    </svg>
+  </div>
+
+  <div id="help-bar">
+    Click node to collapse/expand children &nbsp;·&nbsp;
+    Drag node to reposition &nbsp;·&nbsp; ⌘/Ctrl+drag to move whole subtree &nbsp;·&nbsp;
+    Scroll to zoom &nbsp;·&nbsp; Drag background to pan &nbsp;·&nbsp; R to reset layout
+  </div>
+
+  <div id="hover-popup"><img id="hover-img" src="" alt="board"></div>
+
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <script>
+    // -----------------------------------------------------------------------
+    // Data
+    // -----------------------------------------------------------------------
+    const treeData = JSON.parse(`{{CHESSTREE_TREE_DATA}}`);
+    {{CHESSTREE_IMAGES}}
+    {{CHESSTREE_HOVER_DATA}}
+
+    // -----------------------------------------------------------------------
+    // Dimensions
+    // -----------------------------------------------------------------------
+    const NODE_WIDTH  = 210;
+    const NODE_HEIGHT_BASE = 60;   // fallback estimate per block without image
+    const IMAGE_HEIGHT = 112;       // image row height
+    const NODE_DY_MIN = 16;         // minimum vertical gap between nodes
+
+    // NAG css-class → fill color (mirrors the CSS nag-* classes for use in SVG)
+    const NAG_COLORS = {
+      "nag-blunder":     "#cc2200",
+      "nag-mistake":     "#e05040",
+      "nag-dubious":     "#e08020",
+      "nag-speculative": "#f4bc4f",
+      "nag-good":        "#84c043",
+      "nag-brilliant":   "#66ccff",
+    };
+
+    // Compute NODE_DX from the widest single edge-label line across all edges.
+    // The gap between node edges = NODE_DX - NODE_WIDTH, so label must fit in that gap.
+    // Approximation: 0.72rem font, average char ~6.5px.
+    const EDGE_LABEL_CHAR_PX = 6.5;
+    function _maxEdgeLabelChars(node) {
+      let max = 0;
+      const lbl = node.edgeLabel;
+      if (lbl) {
+        const lines = [
+          lbl.move,
+          ...(lbl.startingComment || []),
+          ...(lbl.comment || []),
+        ];
+        lines.forEach(l => { if (l.length > max) max = l.length; });
+      }
+      (node.children || []).forEach(c => {
+        const child = _maxEdgeLabelChars(c);
+        if (child > max) max = child;
+      });
+      return max;
+    }
+    const _maxLabelChars = _maxEdgeLabelChars(treeData);
+    // label_width + NODE_WIDTH + padding gives enough room between node edges
+    const NODE_DX = Math.max(280, Math.ceil(_maxLabelChars * EDGE_LABEL_CHAR_PX) + NODE_WIDTH + 40);
+
+    // Populated by measureAndInit(); used by estimateNodeHeight.
+    const measuredHeights = new Map();   // nodeKey → measured px height
+
+    function estimateNodeHeight(d) {
+      const key = nodeKey(d.data);
+      if (measuredHeights.has(key)) return measuredHeights.get(key);
+      // Fallback estimate used before measurement pass completes
+      if (d.data.type === "root") {
+        let h = 58;
+        if (d.data.gameComment) h += 18;
+        return h;
+      }
+      let h = NODE_HEIGHT_BASE;
+      const moves = d.data.moves || [];
+      const hasComment = moves.some(m => m.comment);
+      const hasImage = moves.some(m => m.image);
+      if (hasComment) h += 36;
+      if (hasImage) h += IMAGE_HEIGHT;
+      return h;
+    }
+
+    // -----------------------------------------------------------------------
+    // State
+    // -----------------------------------------------------------------------
+    let root;
+    let nodePositions = new Map();   // id → {x, y} manual overrides
+    let collapsedIds  = new Set();   // click: collapse all children
+
+    // -----------------------------------------------------------------------
+    // D3 hierarchy + layout
+    // -----------------------------------------------------------------------
+    function buildHierarchy(data) {
+      return d3.hierarchy(data, d => {
+        const key = nodeKey(d);
+        if (!d.children || !d.children.length) return null;
+        if (collapsedIds.has(key)) return null;
+        return d.children;
+      });
+    }
+
+    function nodeKey(d) {
+      // Use the first move's fen as a stable key, or root title
+      if (d.type === "root") return "root";
+      if (d.moves && d.moves.length) return d.moves[0].fen;
+      return JSON.stringify(d);
+    }
+
+    function runLayout(hierRoot) {
+      const layout = d3.tree()
+        .nodeSize([1, NODE_DX])
+        .separation((a, b) => {
+          const ha = measuredHeights.has(nodeKey(a.data))
+            ? measuredHeights.get(nodeKey(a.data))
+            : estimateNodeHeight(a);
+          const hb = measuredHeights.has(nodeKey(b.data))
+            ? measuredHeights.get(nodeKey(b.data))
+            : estimateNodeHeight(b);
+          return ha / 2 + NODE_DY_MIN + hb / 2;
+        });
+      layout(hierRoot);
+    }
+
+    // -----------------------------------------------------------------------
+    // SVG setup
+    // -----------------------------------------------------------------------
+    const svg = d3.select("#tree-svg");
+    const zoomLayer = svg.select("#zoom-layer");
+    const linksLayer = svg.select("#links-layer");
+    const edgeLabsLayer = svg.select("#edge-labels-layer");
+    const nodesLayer = svg.select("#nodes-layer");
+
+    const zoom = d3.zoom()
+      .scaleExtent([0.1, 4])
+      .filter(event => {
+        // Pan only on background (not on nodes)
+        return event.target === svg.node() ||
+               event.target.closest("#zoom-layer") === null ||
+               event.target.id === "tree-svg";
+      })
+      .on("zoom", event => {
+        zoomLayer.attr("transform", event.transform);
+      });
+
+    svg.call(zoom);
+
+    // -----------------------------------------------------------------------
+    // Rendering
+    // -----------------------------------------------------------------------
+    function render() {
+      const hierRoot = buildHierarchy(treeData);
+      runLayout(hierRoot);
+
+      // Apply manual overrides
+      hierRoot.each(d => {
+        const key = nodeKey(d.data);
+        if (nodePositions.has(key)) {
+          const pos = nodePositions.get(key);
+          d.x = pos.x;
+          d.y = pos.y;
+        }
+      });
+
+      const allNodes = hierRoot.descendants();
+      const allLinks = hierRoot.links();
+
+      // Render links
+      const linkPath = d3.linkHorizontal()
+        .x(d => d.y)
+        .y(d => d.x);
+
+      const linkSel = linksLayer.selectAll(".tree-link")
+        .data(allLinks, d => nodeKey(d.target.data));
+
+      linkSel.enter()
+        .append("path")
+        .merge(linkSel)
+        .attr("class", d =>
+          d.target.data.isVariation ? "tree-link link-variation" : "tree-link link-main"
+        )
+        .attr("d", linkPath)
+        .attr("opacity", 0)
+        .transition().duration(200)
+        .attr("opacity", 1);
+
+      linkSel.exit()
+        .transition().duration(200)
+        .attr("opacity", 0)
+        .remove();
+
+      // Edge labels
+      const edgeLabelSel = edgeLabsLayer.selectAll(".edge-label-g")
+        .data(allLinks.filter(d => d.target.data.edgeLabel), d => nodeKey(d.target.data));
+
+      const edgeLabelEnter = edgeLabelSel.enter()
+        .append("g")
+        .attr("class", "edge-label-g");
+      edgeLabelEnter.append("text").attr("class", "edge-label");
+
+      const edgeLabelMerge = edgeLabelEnter.merge(edgeLabelSel);
+      edgeLabelMerge
+        .transition().duration(200)
+        .attr("transform", d => {
+          const mx = (d.source.y + d.target.y) / 2;
+          const my = (d.source.x + d.target.x) / 2 - 4;
+          return `translate(${mx},${my})`;
+        });
+      edgeLabelMerge.select("text")
+        .attr("text-anchor", "middle")
+        .each(function(d) {
+          const lbl = d.target.data.edgeLabel;
+          const el = d3.select(this);
+          el.selectAll("tspan").remove();
+          // Build ordered list of {text, nagClass} lines
+          const lines = [];
+          (lbl.startingComment || []).forEach(l => lines.push({ text: l, nagClass: null }));
+          lines.push({ text: lbl.move, nagClass: lbl.nagClass });
+          (lbl.comment || []).forEach(l => lines.push({ text: l, nagClass: null }));
+          lines.forEach((line, i) => {
+            const ts = el.append("tspan")
+              .attr("x", 0)
+              .attr("dy", i === 0 ? "0" : "1.2em")
+              .text(line.text);
+            if (line.nagClass && NAG_COLORS[line.nagClass]) {
+              ts.attr("fill", NAG_COLORS[line.nagClass])
+                .style("font-weight", "bold");
+            }
+          });
+        });
+
+      edgeLabelSel.exit().remove();
+
+      // Nodes
+      const nodeSel = nodesLayer.selectAll(".tree-node")
+        .data(allNodes, d => nodeKey(d.data));
+
+      const nodeEnter = nodeSel.enter()
+        .append("g")
+        .attr("class", "tree-node")
+        .attr("transform", d => `translate(${d.y - NODE_WIDTH / 2},${d.x - estimateNodeHeight(d) / 2})`);
+
+      nodeEnter.each(function(d) {
+        const g = d3.select(this);
+        const h = estimateNodeHeight(d);
+        const fo = g.append("foreignObject")
+          .attr("width", NODE_WIDTH)
+          .attr("height", h);
+        fo.append("xhtml:div")
+          .attr("xmlns", "http://www.w3.org/1999/xhtml")
+          .html(buildNodeHTML(d));
+      });
+
+      // Attach interaction to entering nodes
+      nodeEnter
+        .call(makeDrag())
+        .on("click", function(event, d) {
+          // Only trigger collapse if not a drag
+          if (event.defaultPrevented) return;
+          const key = nodeKey(d.data);
+          if (d.data.type === "root") return;
+          if (!(d.data.children && d.data.children.length)) return;
+
+          if (collapsedIds.has(key)) {
+            collapsedIds.delete(key);
+          } else {
+            collapsedIds.add(key);
+          }
+          render();
+        });
+
+      // Update existing nodes
+      const nodeMerge = nodeEnter.merge(nodeSel);
+      nodeMerge.transition().duration(200)
+        .attr("transform", d => `translate(${d.y - NODE_WIDTH / 2},${d.x - estimateNodeHeight(d) / 2})`);
+
+      // Refresh HTML content (collapse state may have changed)
+      nodeMerge.each(function(d) {
+        const fo = d3.select(this).select("foreignObject");
+        const h = estimateNodeHeight(d);
+        fo.attr("height", h);
+        fo.select("div").html(buildNodeHTML(d));
+      });
+
+      nodeSel.exit()
+        .transition().duration(200)
+        .attr("opacity", 0)
+        .remove();
+    }
+
+    // -----------------------------------------------------------------------
+    // Node HTML builder
+    // -----------------------------------------------------------------------
+
+    function buildRootHTML(data) {
+      const headers = data.headers || {};
+      const event   = headers.Event  || "";
+      const site    = headers.Site   || "";
+      const eco     = headers.ECO    || "";
+      const opening = headers.Opening || "";
+      const result  = headers.Result  || "";
+      const metaParts = [event, site].filter(Boolean);
+      if (eco && eco !== "?") metaParts.push(`ECO: ${eco}`);
+      if (opening && opening !== "?") metaParts.push(opening);
+      if (result && result !== "?") metaParts.push(`Result: ${result}`);
+      let html = `<div class="node-card root-card">`;
+      html += `<div class="root-title">${esc(data.title || "")}</div>`;
+      if (metaParts.length) {
+        html += `<div class="root-meta">${esc(metaParts.join(" · "))}</div>`;
+      }
+      if (data.gameComment) {
+        html += `<div class="root-comment">${esc(data.gameComment)}</div>`;
+      }
+      html += `</div>`;
+      return html;
+    }
+
+    function segmentHeader(data, collapsedCount) {
+      const moves = data.moves || [];
+      if (!moves.length) return "";
+      const lineType = data.isMainLine ? "Main line" : "Variation";
+      const startNum = parseInt(moves[0].num);
+      const endNum   = parseInt(moves[moves.length - 1].num);
+      const range    = startNum === endNum ? `${startNum}` : `${startNum}–${endNum}`;
+      const countBadge = collapsedCount > 0
+        ? ` <span class="collapsed-count">▶ ${collapsedCount} hidden</span>`
+        : "";
+      return `<div class="node-header"><span>${lineType}: ${range}</span>${countBadge}</div><hr/>`;
+    }
+
+    // Return { collapsed, hiddenCount } for a data node
+    function collapseState(data) {
+      const key = nodeKey(data);
+      const collapsed = collapsedIds.has(key);
+      const hiddenCount = collapsed ? countDescendants(data) : 0;
+      return { collapsed, hiddenCount };
+    }
+
+    // Split a moves array into blocks ending at commented moves.
+    function splitMovesIntoBlocks(moves) {
+      const blocks = [];
+      let current = [];
+      for (const m of (moves || [])) {
+        current.push(m);
+        if (m.comment) {
+          blocks.push({ moves: current, comment: m.comment });
+          current = [];
+        }
+      }
+      if (current.length) blocks.push({ moves: current, comment: null });
+      return blocks;
+    }
+
+    function countDescendants(data) {
+      let count = 0;
+      function walk(node) {
+        (node.children || []).forEach(c => { count++; walk(c); });
+      }
+      walk(data);
+      return count;
+    }
+
+    function esc(s) {
+      return String(s)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+    }
+
+    // -----------------------------------------------------------------------
+    // Drag behaviour
+    // -----------------------------------------------------------------------
+    function makeDrag() {
+      let startX, startY, origPositions, dragged, subtreeMode;
+
+      return d3.drag()
+        .on("start", function(event, d) {
+          startX = event.x;
+          startY = event.y;
+          dragged = false;
+          subtreeMode = event.sourceEvent.ctrlKey || event.sourceEvent.metaKey;
+          // Snapshot original positions of this node (and subtree if ctrl/cmd)
+          origPositions = new Map();
+          const hierRoot = buildHierarchy(treeData);
+          runLayout(hierRoot);
+          // Re-apply any existing manual overrides so origPositions are current
+          hierRoot.each(n => {
+            const k = nodeKey(n.data);
+            if (nodePositions.has(k)) {
+              const p = nodePositions.get(k);
+              n.x = p.x; n.y = p.y;
+            }
+          });
+          const draggedNode = hierRoot.descendants().find(n => nodeKey(n.data) === nodeKey(d.data));
+          if (!draggedNode) return;
+          const targets = subtreeMode ? draggedNode.descendants() : [draggedNode];
+          targets.forEach(n => origPositions.set(nodeKey(n.data), { x: n.x, y: n.y }));
+          d3.select(this).select(".node-card").classed("dragging", true);
+        })
+        .on("drag", function(event, d) {
+          const dx = event.x - startX;
+          const dy = event.y - startY;
+          if (Math.abs(dx) > 5 || Math.abs(dy) > 5) dragged = true;
+          if (!dragged) return;
+          // Apply delta to all tracked nodes
+          origPositions.forEach((orig, key) => {
+            nodePositions.set(key, { x: orig.x + dy, y: orig.y + dx });
+          });
+          // Re-render all affected node elements live
+          nodesLayer.selectAll(".tree-node")
+            .each(function(n) {
+              const k = nodeKey(n.data);
+              if (nodePositions.has(k)) {
+                const p = nodePositions.get(k);
+                n.x = p.x; n.y = p.y;
+                d3.select(this)
+                  .attr("transform", `translate(${n.y - NODE_WIDTH / 2},${n.x - estimateNodeHeight(n) / 2})`);
+              }
+            });
+          // Re-draw links and edge labels live
+          linksLayer.selectAll(".tree-link")
+            .attr("d", d3.linkHorizontal().x(n => n.y).y(n => n.x));
+          edgeLabsLayer.selectAll(".edge-label-g")
+            .attr("transform", l => {
+              const mx = (l.source.y + l.target.y) / 2;
+              const my = (l.source.x + l.target.x) / 2 - 4;
+              return `translate(${mx},${my})`;
+            });
+        })
+        .on("end", function(event, d) {
+          d3.select(this).select(".node-card").classed("dragging", false);
+          if (!dragged) {
+            // Undo all position overrides set during this drag
+            origPositions.forEach((_, key) => nodePositions.delete(key));
+          }
+        });
+    }
+
+    // -----------------------------------------------------------------------
+    // Hover boards
+    // -----------------------------------------------------------------------
+    const popup  = document.getElementById("hover-popup");
+    const popImg = document.getElementById("hover-img");
+
+    document.addEventListener("mousemove", function(event) {
+      if (!hoverEnabled) return;
+      const target = event.target;
+      const nodeId = target.dataset && target.dataset.nodeid;
+      if (nodeId && hoverImages[nodeId]) {
+        const svgData = hoverImages[nodeId];
+        popImg.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svgData);
+        popImg.style.width = "150px";
+        popImg.style.height = "150px";
+        popup.style.display = "block";
+        popup.style.left = (event.clientX + 14) + "px";
+        popup.style.top  = (event.clientY + 14) + "px";
+      } else {
+        popup.style.display = "none";
+      }
+    });
+
+    function buildMovesHTML(blockMoves, hoverFens) {
+      let html = "";
+      (blockMoves || []).forEach((m, i) => {
+        const showNum = m.num.endsWith(".") || i === 0;
+        if (showNum) html += `<span class="move-num">${esc(m.num)}</span> `;
+        const nodeId = m.fen ? findNodeIdForFen(hoverFens, m.fen) : null;
+        const dataAttr = nodeId ? ` data-nodeid="${nodeId}"` : "";
+        if (m.nagClass) {
+          html += `<span class="${m.nagClass}"${dataAttr}>${esc(m.san)}${m.nag ? esc(m.nag) : ""}</span> `;
+        } else {
+          html += `<span${dataAttr}>${esc(m.san)}</span> `;
+        }
+      });
+      return html;
+    }
+
+    function findNodeIdForFen(hoverFens, fen) {
+      for (const [nodeId, f] of Object.entries(hoverFens)) {
+        if (f === fen) return nodeId;
+      }
+      return null;
+    }
+
+    function buildSegmentHTML(d, data) {
+      const { collapsed, hiddenCount } = collapseState(data);
+      let cls = "node-card";
+      if (!data.isMainLine) cls += " variation-card";
+      if (collapsed) cls += " collapsed";
+
+      let html = `<div class="${cls}">`;
+      html += segmentHeader(data, hiddenCount);
+
+      const blocks = splitMovesIntoBlocks(data.moves);
+      blocks.forEach((blk, bi) => {
+        html += `<div class="moves-line">`;
+        if (hoverEnabled) {
+          html += buildMovesHTML(blk.moves, data.hoverFens || {});
+        } else {
+          blk.moves.forEach((m, i) => {
+            const showNum = m.num.endsWith(".") || (i === 0 && bi !== 0);
+            if (showNum) html += `<span class="move-num">${esc(m.num)}</span> `;
+            if (m.nagClass) {
+              html += `<span class="${m.nagClass}">${esc(m.san)}${m.nag ? esc(m.nag) : ""}</span> `;
+            } else {
+              html += `${esc(m.san)} `;
+            }
+          });
+        }
+        html += `</div>`;
+        if (blk.comment) html += `<div class="node-comment">${esc(blk.comment)}</div>`;
+        const img = blk.moves[blk.moves.length - 1]?.image;
+        if (img) html += `<img class="node-image" src="./${esc(img)}" alt="board position">`;
+      });
+
+      html += `</div>`;
+      return html;
+    }
+
+    function buildNodeHTML(d) {
+      const data = d.data;
+      if (data.type === "root") return buildRootHTML(data);
+      return buildSegmentHTML(d, data);
+    }
+
+    // -----------------------------------------------------------------------
+    // Theme toggle
+    // -----------------------------------------------------------------------
+    const btnTheme = document.getElementById("btn-theme");
+    function applyTheme(light) {
+      if (light) {
+        document.documentElement.classList.add("light");
+        btnTheme.textContent = "🌙 Dark";
+      } else {
+        document.documentElement.classList.remove("light");
+        btnTheme.textContent = "☀ Light";
+      }
+      // Re-render so SVG fill/stroke tokens update
+      render();
+    }
+    btnTheme.addEventListener("click", function() {
+      applyTheme(!document.documentElement.classList.contains("light"));
+    });
+
+    // -----------------------------------------------------------------------
+    // Keyboard shortcuts
+    // -----------------------------------------------------------------------
+    document.addEventListener("keydown", function(e) {
+      if (e.key === "r" || e.key === "R") {
+        nodePositions.clear();
+        collapsedIds.clear();
+        measuredHeights.clear();
+        measureAndInit();
+      }
+    });
+
+    document.getElementById("btn-reset").addEventListener("click", function() {
+      nodePositions.clear();
+      collapsedIds.clear();
+      measuredHeights.clear();
+      measureAndInit();
+    });
+
+    // -----------------------------------------------------------------------
+    // Fit view helper
+    // -----------------------------------------------------------------------
+    function fitView() {
+      const container = document.getElementById("tree-container");
+      const W = container.clientWidth;
+      const H = container.clientHeight;
+
+      // Collect all node positions from the rendered DOM
+      const hierRoot = buildHierarchy(treeData);
+      runLayout(hierRoot);
+      const nodes = hierRoot.descendants();
+      if (!nodes.length) return;
+
+      const minY = d3.min(nodes, d => d.y) - NODE_WIDTH / 2;
+      const maxY = d3.max(nodes, d => d.y) + NODE_WIDTH / 2;
+      const minX = d3.min(nodes, d => d.x) - NODE_HEIGHT_BASE;
+      const maxX = d3.max(nodes, d => d.x) + NODE_HEIGHT_BASE;
+
+      const treeW = maxY - minY;
+      const treeH = maxX - minX;
+      const scale = Math.min(0.95 * W / treeW, 0.95 * H / treeH, 1.5);
+      const tx = -minY * scale + (W - treeW * scale) / 2;
+      const ty = -minX * scale + (H - treeH * scale) / 2;
+
+      svg.call(zoom.transform, d3.zoomIdentity.translate(tx, ty).scale(scale));
+    }
+
+    // -----------------------------------------------------------------------
+    // Two-pass init: measure actual node heights, then render with correct sizes
+    // -----------------------------------------------------------------------
+    function measureAndInit() {
+      const hierRoot = buildHierarchy(treeData);
+      runLayout(hierRoot);
+      const allNodes = hierRoot.descendants();
+
+      // Render nodes offscreen so the browser can calculate actual text heights.
+      const offscreen = svg.append("g")
+        .attr("id", "measure-group")
+        .attr("transform", "translate(-9999,0)");
+
+      const foMap = new Map();
+      allNodes.forEach(d => {
+        const key = nodeKey(d.data);
+        const fo = offscreen.append("foreignObject")
+          .attr("width", NODE_WIDTH)
+          .attr("height", 2000);   // tall enough to never clip
+        fo.append("xhtml:div")
+          .attr("xmlns", "http://www.w3.org/1999/xhtml")
+          .html(buildNodeHTML(d));
+        foMap.set(key, fo.node());
+      });
+
+      // Wait two animation frames so the browser has laid out the HTML.
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        let maxH = NODE_HEIGHT_BASE;
+        foMap.forEach((foEl, key) => {
+          const div = foEl.querySelector("div");
+          if (div) {
+            const h = div.scrollHeight + 12;   // +12 for breathing room
+            measuredHeights.set(key, h);
+            if (h > maxH) maxH = h;
+          }
+        });
+        offscreen.remove();
+        render();
+        fitView();
+      }));
+    }
+
+    // -----------------------------------------------------------------------
+    // Initial render
+    // -----------------------------------------------------------------------
+    measureAndInit();
+  </script>
+</body>
+</html>

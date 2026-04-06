@@ -1,0 +1,19 @@
+[Event "Dortmund Sparkassen"]
+[Site "Dortmund GER"]
+[Date "1997.07.04"]
+[Round "1"]
+[White "Vladimir Kramnik"]
+[Black "Anatoly Karpov"]
+[Result "1-0"]
+[Variant "Standard"]
+[ECO "A15"]
+[Opening "English Opening: Anglo-Indian Defense, Queen's Indian Formation"]
+[StudyName "Kramnik Games"]
+[ChapterName "Kramnik-Karpov 1997"]
+[ChapterURL "https://lichess.org/study/YEYKDn7Q/s7gH5W3v"]
+[Annotator "https://lichess.org/@/njswift"]
+
+{ This English Opening was played in Dortmund in 1997. }
+1. Nf3 Nf6 2. c4 b6 3. g3 Bb7 4. Bg2 e6 5. O-O Be7 6. Re1 O-O 7. Nc3 d5 8. cxd5 Nxd5 9. e4 Nxc3 10. bxc3 Nc6 11. d4 Na5 12. h4 Re8 { This prepares c5, because if c5 immediately then: } (12... c5? 13. d5 exd5 14. exd5 Bxd5 15. Rxe7 Qxe7 16. Qxd5 Rad8 17. Bg5) 13. h5 h6 14. Ne5 { [%cal Ge5g6,Gf7f6] } 14... Bd6 15. Bf4 { It was also possible to play Ng4: } (15. Ng4 f5 16. exf5 exf5 17. Bxb7 Nxb7 18. Rxe8+ Qxe8 19. Ne3) 15... Qe7 { [%cal Ga8e8,Ge8a8,Ge7a3] } 16. Qg4 { [%cal Gf4h6,Gg4g8] } 16... Kh8 17. Nd3 { There was also a wild double sacrifice that no human would play: } (17. Bg5 hxg5 18. Ng6+ fxg6 19. hxg6 Qd7 20. Qh5+ Kg8 21. Re3 g4 22. Qh7+ Kf8 23. Qh8+ Ke7 24. Qh4+ Kf8 25. Qxg4 Be7 26. e5 Bxg2 27. Qf4+ Bf6 28. Kxg2 Ke7 29. exf6+ gxf6 30. Rh1 Rh8 31. Rhe1 Qd5+ 32. f3 Kd7 33. Qxf6) 17... Rad8 18. Rad1 Bc6 (18... Bxf4 19. gxf4 { This would not be good for black. } { [%cal Ge1e3,Gf4f5] }) (18... c5 19. Bxd6 Qxd6 20. Ne5 { [%cal Ge5f7,Gd1d6] }) 19. e5 Ba3 20. Bxc6 Nxc6 21. Re4 { The rook defends the d pawn in case of c5 and it puts itself in position to come to the kingside in the future. } { [%cal Ge4d4,Ge4h4] } 21... Qd7?! { Black opens a line for the bishop to retreat and protect the king, but it loses time and allows white to take the initiative. } { [%csl Gf8][%cal Ga3f8] } 22. Qf3 { The queen moves so that the g pawn can advance and try to open the kingside. } { [%cal Gg3g5] } 22... Bf8 23. Be3 { Kramnik: "A rather instructive moment. The move played contains both offensive motifs, since it frees a path for the rook to the kingside along the fourth rank, as well as prophylactic ones, since the manoeuvre of the knight via e7 is not impossible. In the event of 23. g4 Ne7 24. g5 Nf5 black would have had everything in order." } { [%cal Ge4h4] } (23. g4 Ne7 24. g5 Nf5) 23... Na5 { With the bishop retreat it is not possible to play Ne7: } (23... Ne7 24. Qxf7) 24. g4 Nc4 25. g5 Nxe3 26. fxe3 { "Simpler was 26. Qxe3 hxg5 27.Qxg5 with a clear advantage to white, but I wanted to open the f file for the attack, at the same time strengthening the center." } { [%cal Gd1f1,Gf1f8,Ge3d4] } (26. Qxe3 hxg5 27. Qxg5) 26... hxg5 27. Rg4 Qe7 28. Rf1 Rd7 29. Qg3 f6 30. e4 { Kramnik: "30. h6!? was also interesting, but I did not like the fact that in the variation 30...gxh6 31. exf6 Qh7 32. Ne5 there is 32...Rd5 33.e4 Ra5, although here too white has a powerful attack." } (30. h6 gxh6 31. exf6 Qh7 32. Ne5 Rd5 33. e4 Ra5) 30... Qa3 (30... Qd8 { is passive: } 31. h6 gxh6 32. exf6 { [%cal Gd3e5,Ge5g6] }) (30... c5 { and white must play very energetically } 31. h6 cxd4 32. hxg7+ Bxg7 33. Nf4 gxf4 34. Qh4+ Kg8 35. exf6 Qf8 (35... Qd8 36. Qh6 Ree7 37. cxd4 Rf7 38. fxg7 Rxg7 39. Qxe6+ Rf7 40. Rxg7+ Kxg7 41. Qe5+ Kg8 42. Rf2) (35... Qc5 36. Kh1 Rf8 37. Rfxf4 dxc3 38. Rxg7+ Rxg7 39. fxg7 Kxg7 40. Qg3+ Kh6 41. Rh4+) 36. fxg7 Rxg7 37. Rxf4) 31. exf6 Qxc3? 32. f7 Rc8 33. d5! exd5 34. e5 c5 35. Rf3 c4 36. Nf2 Qe1+ 37. Kg2 { [%csl Gg4,Gf3,Gf2,Gg2,Gg3] } 37... Be7 38. Rxg5 Bxg5 39. f8=Q+ { 1-0 Black resigns. } 1-0
+
+

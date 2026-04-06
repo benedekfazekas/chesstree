@@ -55,6 +55,7 @@ def export_dothtml(
     image_modes: frozenset[str] = frozenset(["variations"]),
     board_img_for_black: bool = False,
     template_path: Optional[pathlib.Path] = None,
+    highlight_last_move: bool = True,
 ) -> tuple[str, dict[str, str]]:
     """Export a chess game to a self-contained d3-graphviz HTML string.
 
@@ -66,7 +67,7 @@ def export_dothtml(
     contain the placeholders ``{{CHESSTREE_TITLE}}``, ``{{CHESSTREE_IMAGES}}``,
     and ``{{CHESSTREE_DOT}}``.
     """
-    dot_str, images = export_dot(game, image_modes=image_modes, board_img_for_black=board_img_for_black)
+    dot_str, images = export_dot(game, image_modes=image_modes, board_img_for_black=board_img_for_black, highlight_last_move=highlight_last_move)
 
     if template_path is not None:
         template = template_path.read_text(encoding="utf-8")

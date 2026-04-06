@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import hashlib
 import html
 import re
 from typing import Optional
@@ -17,19 +16,14 @@ from chess.pgn import (
     NAG_SPECULATIVE_MOVE,
 )
 
-from chesstree.json_exporter import NAG_TO_PGN_STRING
-from chesstree.utils import has_real_comment, _PGN_COMMAND_ANNOTATION_RE
-
-# Assessment NAGs ordered by priority: most severe first.
-# When a block or branch has multiple NAGs, the most severe wins for coloring.
-_ASSESSMENT_NAGS_PRIORITY = [
-    NAG_BLUNDER,
-    NAG_MISTAKE,
-    NAG_DUBIOUS_MOVE,
-    NAG_SPECULATIVE_MOVE,
-    NAG_GOOD_MOVE,
-    NAG_BRILLIANT_MOVE,
-]
+from chesstree.utils import (
+    has_real_comment,
+    _PGN_COMMAND_ANNOTATION_RE,
+    _ASSESSMENT_NAGS_PRIORITY,
+    _nag_symbol,
+    _node_id,
+    _last_move_fill,
+)
 
 _NAG_COLORS: dict[int, str] = {
     NAG_BLUNDER: "#cc2200",
@@ -41,25 +35,12 @@ _NAG_COLORS: dict[int, str] = {
 }
 
 
-def _nag_symbol(node: chess.pgn.ChildNode) -> str:
-    """Return the PGN symbol for the most significant assessment NAG on this node."""
-    for nag in _ASSESSMENT_NAGS_PRIORITY:
-        if nag in node.nags:
-            return NAG_TO_PGN_STRING[nag]
-    return ""
-
-
 def _move_color(node: chess.pgn.ChildNode) -> Optional[str]:
     """Return the highlight color for a move based on its assessment NAG, or None."""
     for nag in _ASSESSMENT_NAGS_PRIORITY:
         if nag in node.nags:
             return _NAG_COLORS[nag]
     return None
-
-
-def _node_id(fen: str) -> str:
-    """Generate a stable node ID from a FEN string."""
-    return "n" + hashlib.md5(fen.encode()).hexdigest()[:8]
 
 
 _HTML_TAG_RE = re.compile(r"<[^>]+>")
@@ -144,10 +125,12 @@ class _DotBuilder:
         game: chess.pgn.Game,
         image_modes: frozenset[str] = frozenset(["variations"]),
         board_img_for_black: bool = False,
+        highlight_last_move: bool = True,
     ) -> None:
         self.game = game
         self.image_modes = image_modes
         self.orientation = chess.BLACK if board_img_for_black else chess.WHITE
+        self.highlight_last_move = highlight_last_move
         self._node_decls: list[str] = []
         self._edge_decls: list[str] = []
         self._main_seg_ids: list[str] = []
@@ -407,8 +390,9 @@ class _DotBuilder:
         board = node.board()
         filename = _node_id(board.fen()) + ".svg"
         if filename not in self._images:
+            fill = _last_move_fill(node.move) if self.highlight_last_move else {}
             self._images[filename] = chess.svg.board(
-                board, size=250, orientation=self.orientation
+                board, size=250, orientation=self.orientation, fill=fill
             )
         return filename
 
@@ -492,10 +476,11 @@ def export_dot(
     game: chess.pgn.Game,
     image_modes: frozenset[str] = frozenset(["variations"]),
     board_img_for_black: bool = False,
+    highlight_last_move: bool = True,
 ) -> tuple[str, dict[str, str]]:
     """Export a chess game to a GraphViz DOT string plus a dict of image files.
 
     Returns a tuple of (dot_string, images) where images maps filename to SVG
     content. The images dict is empty when image_modes is empty or {"none"}.
     """
-    return _DotBuilder(game, image_modes, board_img_for_black).build()
+    return _DotBuilder(game, image_modes, board_img_for_black, highlight_last_move).build()
