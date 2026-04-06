@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import re
 from typing import Optional
 
 import chess
@@ -60,22 +61,64 @@ def _node_id(fen: str) -> str:
     return "n" + hashlib.md5(fen.encode()).hexdigest()[:8]
 
 
-def _wrap(text: str, width: int = 40) -> str:
-    """Wrap text at word boundaries, joining lines with <br align="left"/>."""
+_HTML_TAG_RE = re.compile(r"<[^>]+>")
+
+
+def _wrap(text: str, width: int = 40, first_line_offset: int = 0) -> str:
+    """Wrap plain text at word boundaries, joining lines with <br align="left"/>.
+
+    ``first_line_offset`` reduces the available width on the first line only,
+    to account for content (e.g. moves) that already occupies part of that line.
+    """
     if not text:
         return text
     words = text.split(" ")
     lines: list[str] = []
     current = ""
+    line_width = width - first_line_offset
     for word in words:
         candidate = (current + " " + word).lstrip()
-        if current and len(candidate) > width:
+        if current and len(candidate) > line_width:
             lines.append(current)
             current = word
+            line_width = width  # full width for every line after the first
         else:
             current = candidate
     if current:
         lines.append(current)
+    return '<br align="left"/>'.join(lines)
+
+
+def _wrap_moves(parts: list[str], width: int = 40, first_line_offset: int = 0) -> str:
+    """Wrap a list of move HTML tokens at *visible* character width.
+
+    Each token may contain HTML tags (e.g. ``<font color="...">e4?</font>``);
+    tag markup is excluded from the width calculation so that coloured NAG
+    moves don't artificially trigger early wrapping.
+
+    ``first_line_offset`` reduces the budget for the very first line only,
+    to account for a prefix (e.g. ``"moves:"``) that precedes the move tokens
+    in the rendered cell but is not part of the tokens themselves.
+    """
+    if not parts:
+        return ""
+    lines: list[str] = []
+    current: list[str] = []
+    current_vis = 0
+    line_width = width - first_line_offset
+    for part in parts:
+        part_vis = len(_HTML_TAG_RE.sub("", part))
+        sep = 1 if current else 0
+        if current and current_vis + sep + part_vis > line_width:
+            lines.append(" ".join(current))
+            current = [part]
+            current_vis = part_vis
+            line_width = width  # full width for every line after the first
+        else:
+            current.append(part)
+            current_vis += sep + part_vis
+    if current:
+        lines.append(" ".join(current))
     return '<br align="left"/>'.join(lines)
 
 
@@ -295,9 +338,33 @@ class _DotBuilder:
             comment = _PGN_COMMAND_ANNOTATION_RE.sub("", comment_raw).strip()
 
             prefix = "moves:" if block_idx == 0 else ""
-            wrapped_comment = _wrap(comment) if comment else ""
 
-            content = f"&#160;<b>{prefix}{move_html}</b>&#160;{wrapped_comment}"
+            if comment:
+                # Compute how many visible chars are already used on the last move line.
+                _br = '<br align="left"/>'
+                last_move_line = move_html.split(_br)[-1]
+                last_move_vis = len(_HTML_TAG_RE.sub("", last_move_line))
+                if _br in move_html:
+                    # Moves wrapped; last line carries no prefix or leading space.
+                    used = last_move_vis
+                else:
+                    # Single move line; includes leading &#160; (1) and prefix.
+                    used = 1 + len(prefix) + last_move_vis
+                # +1 for the &#160; separator that will appear between moves and comment.
+                comment_offset = used + 1
+                first_word_vis = len(comment.split()[0])
+                if comment_offset + first_word_vis > 40:
+                    # First comment word won't fit on the last move line.
+                    separator = _br
+                    wrapped_comment = _wrap(comment)
+                else:
+                    separator = "&#160;"
+                    wrapped_comment = _wrap(comment, first_line_offset=comment_offset)
+            else:
+                separator = "&#160;"
+                wrapped_comment = ""
+
+            content = f"&#160;<b>{prefix}{move_html}</b>{separator}{wrapped_comment}"
             rows.append(f'<tr><td border="0">{content}</td></tr>')
 
             if self._block_needs_image(block_idx, total_blocks, block):
@@ -359,7 +426,7 @@ class _DotBuilder:
             blocks.append(current)
         return blocks
 
-    def _format_block_moves(self, block: list[chess.pgn.ChildNode], first_block: bool) -> str:
+    def _format_block_moves(self, block: list[chess.pgn.ChildNode], first_block: bool, width: int = 40) -> str:
         """Format the SAN move text for a block of moves as an HTML fragment.
 
         Rules:
@@ -368,6 +435,8 @@ class _DotBuilder:
           so the reader knows which move number they are looking at after a comment break.
         - Black move as a continuation within a block (i > 0): no number.
         - Moves with an assessment NAG are wrapped in <font color="..."> tags.
+        - The sequence is wrapped at *width* visible characters using <br align="left"/>
+          so that long blocks don't produce excessively wide graph nodes.
         """
         parts: list[str] = []
         for i, node in enumerate(block):
@@ -387,7 +456,8 @@ class _DotBuilder:
 
             parts.append(move_str)
 
-        return " ".join(parts)
+        first_line_offset = len("moves:") if first_block else 0
+        return _wrap_moves(parts, width, first_line_offset=first_line_offset)
 
     def _render_edge_label(self, node: chess.pgn.ChildNode) -> str:
         """Format the label for an edge pointing to a variation start."""

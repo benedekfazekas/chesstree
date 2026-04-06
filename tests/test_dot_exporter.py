@@ -9,7 +9,7 @@ import chess.pgn
 import pytest
 from chess.pgn import NAG_BLUNDER, NAG_DUBIOUS_MOVE, NAG_GOOD_MOVE, NAG_MISTAKE
 
-from chesstree.dot_exporter import _DotBuilder, _nag_symbol, _wrap, export_dot
+from chesstree.dot_exporter import _DotBuilder, _nag_symbol, _wrap, _wrap_moves, export_dot
 
 # ---------------------------------------------------------------------------
 # Sample PGN paths
@@ -84,6 +84,73 @@ class TestWrap:
         long_word = "a" * 50
         assert _wrap(long_word) == long_word  # can't break, no spaces
 
+    def test_first_line_offset_reduces_first_line_budget(self):
+        # Without offset "aa bb cc" (8 chars) fits in width=10; with offset=5 it wraps.
+        assert '<br align="left"/>' not in _wrap("aa bb cc", width=10, first_line_offset=0)
+        assert '<br align="left"/>' in _wrap("aa bb cc", width=10, first_line_offset=5)
+
+    def test_first_line_offset_only_affects_first_line(self):
+        # After the first break, subsequent lines use the full width.
+        result = _wrap("aa bb cc dd", width=5, first_line_offset=3)
+        lines = result.split('<br align="left"/>')
+        # All lines after the first should be ≤ 5 visible chars.
+        for line in lines[1:]:
+            assert len(line) <= 5
+
+
+# ---------------------------------------------------------------------------
+# Unit tests: _wrap_moves
+# ---------------------------------------------------------------------------
+
+
+class TestWrapMoves:
+    def test_short_sequence_unchanged(self):
+        parts = ["1. e4", "e5", "2. Nf3"]
+        assert _wrap_moves(parts) == "1. e4 e5 2. Nf3"
+
+    def test_empty_list(self):
+        assert _wrap_moves([]) == ""
+
+    def test_wraps_at_visible_width(self):
+        # 10 tokens each 5 visible chars → forces several line breaks at width=20
+        parts = ["1. e4", "e5 2.", "Nf3 Nc6", "3. Bb5", "a6 4.", "Ba4 Nf6"]
+        result = _wrap_moves(parts, width=20)
+        assert '<br align="left"/>' in result
+
+    def test_html_tags_excluded_from_width(self):
+        # A coloured move: visible length of '<font color="#e05040">e4?</font>' is 3
+        coloured = '<font color="#e05040">e4?</font>'
+        plain = "1."
+        # "1. e4?" is only 7 visible chars → should NOT wrap at width=40
+        result = _wrap_moves([plain, coloured], width=40)
+        assert '<br align="left"/>' not in result
+
+    def test_long_sequence_wraps(self):
+        # Simulate a 17-move variation block (like Kramnik-Karpov)
+        parts = [
+            "17. Bg5", "hxg5", "18. Ng6+", "fxg6", "19. hxg6", "Qd7",
+            "20. Qh5+", "Kg8", "21. Re3", "g4", "22. Qh7+", "Kf8",
+            "23. Qh8+", "Ke7", "24. Qh4+", "Kf8", "25. Qxg4",
+        ]
+        result = _wrap_moves(parts, width=40)
+        lines = result.split('<br align="left"/>')
+        assert len(lines) > 1
+        for line in lines:
+            assert len(line) <= 45  # allow a little slack for indivisible tokens
+
+    def test_first_line_offset_reduces_first_line_budget(self):
+        # With offset=6 (len("moves:")), first line budget = 34, rest = 40.
+        # "1. e4 e5 2. Nf3 Nc6 3. Bb5" = 27 visible chars — fits in first line (34).
+        # Adding "a6" (2) would give 30 — still fits.
+        # Make first line exactly overflow: use a 34-char sequence that
+        # would NOT wrap without offset but DOES wrap with offset=6.
+        parts = ["1. e4", "e5", "2. Nf3", "Nc6", "3. Bb5", "a6", "4. Ba4"]
+        # Visible: "1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 4. Ba4" = 38 chars
+        # Without offset → fits in 40, no wrap.
+        assert '<br align="left"/>' not in _wrap_moves(parts, width=40, first_line_offset=0)
+        # With offset=6 → first-line budget=34, 38>34 → wraps.
+        assert '<br align="left"/>' in _wrap_moves(parts, width=40, first_line_offset=6)
+
 
 # ---------------------------------------------------------------------------
 # Unit tests: _format_block_moves
@@ -127,6 +194,75 @@ class TestFormatBlockMoves:
         nf3 = e5.variations[0]
         result = self._fmt([e5, nf3], first_block=False)
         assert result == "1. .. e5 2. Nf3"
+
+    def test_long_sequence_wraps(self):
+        # A sequence long enough to exceed width=40 should produce <br> separators
+        game = _load_pgn_str(
+            "[Result '*']\n"
+            "1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 4. Ba4 Nf6 5. O-O Be7 6. Re1 b5 *"
+        )
+        node = game.variations[0]
+        block = []
+        while node:
+            block.append(node)
+            node = node.variations[0] if node.variations else None
+        result = self._fmt(block, first_block=True)
+        assert '<br align="left"/>' in result
+
+    def test_first_block_prefix_accounted_in_width(self):
+        # first_block=True → offset=6 → first-line budget=34.
+        # "1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 4. Ba4" = 38 visible chars > 34, so must wrap.
+        # first_block=False → offset=0 → budget=40 → same 38 chars fits, no wrap.
+        game = _load_pgn_str(
+            "[Result '*']\n1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 4. Ba4 *"
+        )
+        node = game.variations[0]
+        block = []
+        while node:
+            block.append(node)
+            node = node.variations[0] if node.variations else None
+        assert '<br align="left"/>' in self._fmt(block, first_block=True)
+        assert '<br align="left"/>' not in self._fmt(block, first_block=False)
+
+
+# ---------------------------------------------------------------------------
+# Unit tests: _render_node_label comment separation
+# ---------------------------------------------------------------------------
+
+
+class TestRenderNodeLabelCommentSeparation:
+    def _dot(self, pgn: str) -> str:
+        game = _load_pgn_str(pgn)
+        dot, _ = export_dot(game, frozenset(["none"]))
+        return dot
+
+    def test_short_move_comment_is_inline(self):
+        # Short move sequence leaves plenty of room → comment stays on the same line.
+        pgn = "[Result '*']\n1. e4 { A comment } *"
+        dot = self._dot(pgn)
+        # Separator should be &#160;, not <br>.
+        assert "<b>moves:1. e4</b>&#160;A comment" in dot
+
+    def test_comment_breaks_when_first_word_wont_fit(self):
+        # "1. e4 e5 2. Nf3 Nc6 3. Bb5 a6" = 30 visible chars.
+        # used = 1 (&#160;) + 6 ("moves:") + 30 = 37; comment_offset = 38.
+        # first_word = "inaccuracy" (10 chars); 38+10 = 48 > 40 → must break.
+        pgn = "[Result '*']\n1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 { inaccuracy } *"
+        dot = self._dot(pgn)
+        assert '<br align="left"/>inaccuracy' in dot
+
+    def test_comment_is_inline_when_first_word_fits(self):
+        # "1. Nf3 Nf6 2. c4 e6" = 20 chars; used = 1+6+20 = 27; offset = 28.
+        # first_word = "deep" (4 chars); 28+4 = 32 ≤ 40 → inline.
+        pgn = "[Result '*']\n1. Nf3 Nf6 2. c4 e6 { deep comment } *"
+        dot = self._dot(pgn)
+        assert "<b>moves:1. Nf3 Nf6 2. c4 e6</b>&#160;deep comment" in dot
+
+    def test_no_comment_uses_trailing_nbsp(self):
+        # With no comment, the cell content ends with &#160; not a <br>.
+        pgn = "[Result '*']\n1. e4 *"
+        dot = self._dot(pgn)
+        assert "<b>moves:1. e4</b>&#160;" in dot
 
 
 # ---------------------------------------------------------------------------
