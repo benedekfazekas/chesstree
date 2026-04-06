@@ -2,12 +2,14 @@ from __future__ import annotations
 
 import io
 import json
+import pathlib
 import sys
+import tempfile
 
 import chess.pgn
 import pytest
 
-from chesstree.cli import pgn_to_json, json_to_pgn, _detect_input_format
+from chesstree.cli import pgn_to_json, json_to_pgn, _detect_input_format, game_to_d3html
 from chesstree.json_exporter import JsonExporter
 
 SIMPLE_PGN = """\
@@ -156,3 +158,101 @@ class TestInputFormatDetection:
     def test_override_json_on_non_json_file(self):
         f = _make_input("", "data.txt")
         assert _detect_input_format(f, "json") == "json"
+
+SAMPLES = pathlib.Path(__file__).parent / "sample_pgns"
+LISPERER = SAMPLES / "lisperer_vs_verenitach.pgn"
+
+
+class TestGameToD3html:
+    def test_d3html_produces_html(self):
+        output_f = _make_output()
+        game_to_d3html(_make_input(SIMPLE_PGN, "game.pgn"), output_f, "pgn")
+        output_f.seek(0)
+        html = output_f.read()
+        assert "<!DOCTYPE html>" in html
+        assert "</html>" in html
+
+    def test_d3html_title_in_output(self):
+        output_f = _make_output()
+        game_to_d3html(_make_input(SIMPLE_PGN, "game.pgn"), output_f, "pgn")
+        output_f.seek(0)
+        html = output_f.read()
+        assert "Alice" in html
+
+    def test_d3html_tree_data_embedded(self):
+        output_f = _make_output()
+        game_to_d3html(_make_input(SIMPLE_PGN, "game.pgn"), output_f, "pgn")
+        output_f.seek(0)
+        html = output_f.read()
+        assert "JSON.parse" in html
+
+    def test_d3html_hover_disabled_by_default(self):
+        output_f = _make_output()
+        game_to_d3html(_make_input(SIMPLE_PGN, "game.pgn"), output_f, "pgn")
+        output_f.seek(0)
+        html = output_f.read()
+        assert "hoverEnabled = false" in html
+
+    def test_d3html_hover_enabled(self):
+        output_f = _make_output()
+        game_to_d3html(_make_input(SIMPLE_PGN, "game.pgn"), output_f, "pgn", hover=True)
+        output_f.seek(0)
+        html = output_f.read()
+        assert "hoverEnabled = true" in html
+
+    def test_d3html_none_images_mode(self):
+        output_f = _make_output()
+        game_to_d3html(
+            _make_input(SIMPLE_PGN, "game.pgn"), output_f, "pgn",
+            images=["none"],
+        )
+        output_f.seek(0)
+        html = output_f.read()
+        assert "<!DOCTYPE html>" in html
+
+    def test_d3html_svg_files_written_to_output_dir(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            html_path = pathlib.Path(tmpdir) / "game.html"
+            with open(html_path, "w") as out_f:
+                game_to_d3html(
+                    _make_input(SIMPLE_PGN, "game.pgn"), out_f, "pgn",
+                    images=["all"],
+                )
+            svg_files = list(pathlib.Path(tmpdir).glob("*.svg"))
+            assert len(svg_files) > 0
+
+    def test_d3html_no_svg_on_stdout(self):
+        output_f = _make_output()  # name = "<stdout>"
+        game_to_d3html(
+            _make_input(SIMPLE_PGN, "game.pgn"), output_f, "pgn",
+            images=["all"],
+        )
+        # No SVG files should be written; just verify no error
+
+    def test_d3html_custom_template(self):
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".html", delete=False) as f:
+            f.write(
+                "<html><body>{{CHESSTREE_TITLE}}"
+                "{{CHESSTREE_TREE_DATA}}{{CHESSTREE_IMAGES}}"
+                "{{CHESSTREE_HOVER_DATA}}</body></html>"
+            )
+            tmp_path = pathlib.Path(f.name)
+        try:
+            output_f = _make_output()
+            template_f = open(tmp_path)
+            game_to_d3html(
+                _make_input(SIMPLE_PGN, "game.pgn"), output_f, "pgn",
+                template_file=template_f,
+            )
+            template_f.close()
+            output_f.seek(0)
+            html = output_f.read()
+            assert "Alice" in html
+        finally:
+            tmp_path.unlink()
+
+    def test_d3html_empty_pgn_exits(self):
+        output_f = _make_output()
+        with pytest.raises(SystemExit) as exc_info:
+            game_to_d3html(_make_input("", "game.pgn"), output_f, "pgn")
+        assert exc_info.value.code == 1
