@@ -465,11 +465,15 @@ class _DotBuilder:
         num = _move_num(node)
         san = node.parent.board().san(node.move)
         nag = _nag_symbol(node)
+        starting_comment = _PGN_COMMAND_ANNOTATION_RE.sub("", node.starting_comment or "").strip()
         comment = _PGN_COMMAND_ANNOTATION_RE.sub("", node.comment or "").strip()
 
         move_text = f"{num}. {san}" if white else f"{num}. .. {san}"
 
-        parts = [f"&#160;<b>{move_text}</b>&#160;"]
+        parts = []
+        if starting_comment:
+            parts.append(_wrap(starting_comment))
+        parts.append(f"&#160;<b>{move_text}</b>&#160;")
         if nag:
             parts.append(f"&#160;<b>{nag}</b>&#160;")
         if comment:

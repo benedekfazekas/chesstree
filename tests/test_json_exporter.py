@@ -30,6 +30,24 @@ VARIATION_PGN = """\
 1. e4 e5 (1... c5 2. Nf3) 2. Nf3 1-0
 """
 
+VARIATION_STARTING_COMMENT_PGN = """\
+[Event "Variation Test"]
+[White "Alice"]
+[Black "Bob"]
+[Result "1-0"]
+
+1. e4 e5 ({ The Sicilian is also possible. } 1... c5 2. Nf3) 2. Nf3 1-0
+"""
+
+GAME_AND_VARIATION_COMMENT_PGN = """\
+[Event "Test"]
+[White "A"]
+[Black "B"]
+[Result "*"]
+
+{ Game intro. } 1. e4 e5 ({ Sicilian note. } 1... c5) *
+"""
+
 
 def _parse_game(pgn_text: str) -> chess.pgn.Game:
     game = chess.pgn.read_game(io.StringIO(pgn_text))
@@ -150,7 +168,31 @@ class TestJsonExporter:
         variation_entries = [m for m in data["moves"] if "variation" in m]
         assert len(variation_entries) == 0
 
-    def test_reset_between_games(self):
+    def test_variation_starting_comment_on_wrapper(self):
+        game = _parse_game(VARIATION_STARTING_COMMENT_PGN)
+        data = json.loads(game.accept(JsonExporter(variations=True, comments=True)))
+        wrapper = next(m for m in data["moves"] if "variation" in m)
+        assert wrapper.get("comment") == "The Sicilian is also possible."
+
+    def test_variation_starting_comment_not_in_game_headers(self):
+        game = _parse_game(VARIATION_STARTING_COMMENT_PGN)
+        data = json.loads(game.accept(JsonExporter(variations=True, comments=True)))
+        assert "Comment" not in data["headers"]
+
+    def test_variation_starting_comment_excluded_when_comments_false(self):
+        game = _parse_game(VARIATION_STARTING_COMMENT_PGN)
+        data = json.loads(game.accept(JsonExporter(variations=True, comments=False)))
+        wrapper = next(m for m in data["moves"] if "variation" in m)
+        assert "comment" not in wrapper
+
+    def test_game_comment_preserved_alongside_variation_starting_comment(self):
+        game = _parse_game(GAME_AND_VARIATION_COMMENT_PGN)
+        data = json.loads(game.accept(JsonExporter(variations=True, comments=True)))
+        assert data["headers"]["Comment"] == "Game intro."
+        wrapper = next(m for m in data["moves"] if "variation" in m)
+        assert wrapper.get("comment") == "Sicilian note."
+
+
         game1 = _parse_game(SIMPLE_PGN)
         game2 = _parse_game(SIMPLE_PGN)
         exporter = JsonExporter()

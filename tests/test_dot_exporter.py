@@ -449,7 +449,28 @@ class TestDotFunctional:
         assert "7. Nc3" in dot  # first variation edge in verenitach
         assert "11. .. e5" in dot
 
-    def test_invis_edges_present(self):
+    def test_variation_starting_comment_in_edge_label(self):
+        pgn = (
+            "[White \"A\"]\n[Black \"B\"]\n[Result \"*\"]\n\n"
+            "1. e4 e5 ({ Sicilian is also popular. } 1... c5 2. Nf3) 2. Nf3 *"
+        )
+        game = _load_pgn_str(pgn)
+        dot, _ = export_dot(game, image_modes=frozenset(["none"]))
+        assert "Sicilian is also popular." in dot
+
+    def test_variation_starting_comment_appears_before_move_in_edge(self):
+        pgn = (
+            "[White \"A\"]\n[Black \"B\"]\n[Result \"*\"]\n\n"
+            "1. e4 e5 ({ Opening note. } 1... c5 2. Nf3) 2. Nf3 *"
+        )
+        game = _load_pgn_str(pgn)
+        dot, _ = export_dot(game, image_modes=frozenset(["none"]))
+        # The starting comment must appear before the move text on the edge label
+        note_pos = dot.index("Opening note.")
+        move_pos = dot.index("<b>1. .. c5</b>")
+        assert note_pos < move_pos
+
+
         dot = self._dot(LISPERER)
         assert "style=invis" in dot
 

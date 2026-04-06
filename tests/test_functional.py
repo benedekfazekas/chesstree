@@ -284,6 +284,25 @@ class TestRoundTrip:
         pgn1, pgn2 = _roundtrip(CARO_KANN)
         assert pgn1 == pgn2
 
+    def test_variation_starting_comment_round_trips(self):
+        pgn_text = (
+            "[White \"A\"]\n[Black \"B\"]\n[Result \"*\"]\n\n"
+            "1. e4 e5 ({ The Sicilian is also popular. } 1... c5 2. Nf3) 2. Nf3 *"
+        )
+        game1 = chess.pgn.read_game(io.StringIO(pgn_text))
+        json_str = game1.accept(JsonExporter(headers=True, comments=True, variations=True))
+        data = json.loads(json_str)
+        # The variation wrapper must carry the comment, not headers["Comment"]
+        wrapper = next(m for m in data["moves"] if "variation" in m)
+        assert wrapper.get("comment") == "The Sicilian is also popular."
+        assert "Comment" not in data["headers"]
+        # After parsing back, starting_comment lands on the first move of the variation
+        game2 = parse_json(data)
+        e4_node = game2.variations[0]
+        c5_var = e4_node.variations[1]
+        assert c5_var.starting_comment == "The Sicilian is also popular."
+        assert str(game1) == str(game2)
+
 
 # ---------------------------------------------------------------------------
 # Clock-annotated game: gergeshain-vs-lisperer

@@ -9,32 +9,49 @@ import chess.pgn
 import chess.svg
 
 
-def _process_moves(game_node: chess.pgn.GameNode, moves: List[dict]) -> None:
+def _process_moves(
+    game_node: chess.pgn.GameNode,
+    moves: List[dict],
+    _starting_comment: Optional[str] = None,
+) -> None:
     """
     Recursively build a chess.pgn game tree from a JSON moves list.
 
     Each entry is either:
       - A move dict: {"san": ..., "comments": [...], "nags": [...], ...}
-      - A variation dict: {"variation": [<moves list>]}
+      - A variation dict: {"variation": [<moves list>], "comment": <str>}
 
     A variation entry represents an alternative to the preceding move in the
     current list, branching from the parent of the node built for that move.
     This mirrors the visitor call order produced by chess.pgn: variations are
     emitted after the main-line move they shadow, at whatever nesting depth
     they occur in the game tree.
+
+    ``_starting_comment`` carries a variation wrapper's ``comment`` value so
+    that it can be set as ``starting_comment`` on the first move node built
+    inside that variation (mirroring PGN's pre-move annotation semantics).
     """
     current_node = game_node
+    first_move = True
     for entry in moves:
         if "variation" in entry:
             # Variation branches from the parent of the last move we built.
             # current_node.parent is None only for the game root, which can
             # never be preceded by a move, so this guard is purely defensive.
             if current_node.parent is not None:
-                _process_moves(current_node.parent, entry["variation"])
+                _process_moves(
+                    current_node.parent,
+                    entry["variation"],
+                    _starting_comment=entry.get("comment"),
+                )
         else:
             board = current_node.board()
             move = board.parse_san(entry["san"])
             child_node = current_node.add_variation(move)
+
+            if first_move and _starting_comment:
+                child_node.starting_comment = _starting_comment
+            first_move = False
 
             comments = entry.get("comments", [])
             if comments:

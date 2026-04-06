@@ -233,7 +233,20 @@ class JsonExporter(BaseVisitor[str]):
         if not self.comments_flag:
             return
         if not self.current_variation:
-            # Comment before the first move — this is the game-level comment.
+            if self.variation_depth > 0 and self.variation_stack:
+                # Starting comment of a variation (PGN `starting_comment`).
+                # The variation wrapper that owns `current_variation` is the
+                # last entry in the parent list; attach the comment to it.
+                texts = _standardize_comments(comment)
+                text = " ".join(t for t in texts if t)
+                if text:
+                    parent = self.variation_stack[-1]
+                    for entry in reversed(parent):
+                        if entry.get("variation") is self.current_variation:
+                            entry["comment"] = text
+                            break
+                return
+            # Comment before the first move at root level — game-level comment.
             texts = _standardize_comments(comment)
             text = " ".join(t for t in texts if t)
             if text:
