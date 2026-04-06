@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import html
 import re
 from typing import Optional
 
@@ -62,6 +63,11 @@ def _node_id(fen: str) -> str:
 
 
 _HTML_TAG_RE = re.compile(r"<[^>]+>")
+
+
+def _escape_html(text: str) -> str:
+    """Escape HTML special characters for safe embedding in GraphViz HTML labels."""
+    return html.escape(text, quote=False)
 
 
 def _wrap(text: str, width: int = 40, first_line_offset: int = 0) -> str:
@@ -290,14 +296,14 @@ class _DotBuilder:
         result = headers.get("Result", "?")
         body_text = f"{event} {site} opening ({eco}): {opening} Result: {result}"
 
-        wrapped_title = _wrap(title)
-        wrapped_body = _wrap(body_text)
+        wrapped_title = _wrap(_escape_html(title))
+        wrapped_body = _wrap(_escape_html(body_text))
 
         game_comment = _PGN_COMMAND_ANNOTATION_RE.sub("", self.game.comment or "").strip()
 
         root_id = _node_id(self.game.board().fen())
         comment_row = (
-            f'<tr><td border="0"><i>{_wrap(game_comment)}</i></td></tr>'
+            f'<tr><td border="0"><i>{_wrap(_escape_html(game_comment))}</i></td></tr>'
             if game_comment
             else ""
         )
@@ -335,7 +341,7 @@ class _DotBuilder:
         for block_idx, block in enumerate(blocks):
             move_html = self._format_block_moves(block, first_block=(block_idx == 0))
             comment_raw = block[-1].comment or ""
-            comment = _PGN_COMMAND_ANNOTATION_RE.sub("", comment_raw).strip()
+            comment = _escape_html(_PGN_COMMAND_ANNOTATION_RE.sub("", comment_raw).strip())
 
             prefix = "moves:" if block_idx == 0 else ""
 
@@ -465,8 +471,8 @@ class _DotBuilder:
         num = _move_num(node)
         san = node.parent.board().san(node.move)
         nag = _nag_symbol(node)
-        starting_comment = _PGN_COMMAND_ANNOTATION_RE.sub("", node.starting_comment or "").strip()
-        comment = _PGN_COMMAND_ANNOTATION_RE.sub("", node.comment or "").strip()
+        starting_comment = _escape_html(_PGN_COMMAND_ANNOTATION_RE.sub("", node.starting_comment or "").strip())
+        comment = _escape_html(_PGN_COMMAND_ANNOTATION_RE.sub("", node.comment or "").strip())
 
         move_text = f"{num}. {san}" if white else f"{num}. .. {san}"
 

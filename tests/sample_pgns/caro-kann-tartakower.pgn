@@ -1,0 +1,16 @@
+[Event "caro-kann, classical, tartakower: classical"]
+[Date "2025.08.01"]
+[Result "*"]
+[Variant "Standard"]
+[ECO "B15"]
+[Opening "Caro-Kann Defense: Tartakower Variation"]
+[StudyName "caro-kann, classical, tartakower"]
+[ChapterName "classical"]
+[ChapterURL "https://lichess.org/study/SpsipP7t/VRzEE4Je"]
+[Annotator "https://lichess.org/@/lisperer"]
+[UTCDate "2025.08.01"]
+[UTCTime "10:10:02"]
+
+1. e4 c6 2. d4 d5 3. Nc3 dxe4 4. Nxe4 { branching point of different classical variations, most tipical is 4. .. Bf5 } 4... Nf6 5. Nxf6+ (5. Ng3 { declined tartakower, black can give some trouble to white with h5 } 5... h5 { the critical move to punish the passive Ng3 } 6. h4 { best for white } (6. Be2 h4 7. Nh5?? { looses a piece } 7... Nxh5 8. Bxh5 Qa5+ 9. Bd2 Qxh5) 6... c5 { g6 is the engine move } 7. Nf3 Nc6 8. Be3 cxd4 9. Nxd4 Bg4 { big complications for white <https://youtu.be/ln2PubV5tiY?si=Z1I3x-cc3EnNEJ3t&t=96> }) 5... exf6 { the Tartakower variation, altho black has dbl pawns the extra pawn can be used for both defence and attack on the king side, black pieces are easy to develop, can surprise players on the club level } 6. Nf3 (6. c3 { tests the Tarkatower line with a Bd3 Qc2 battery against h7 } 6... Bd6 7. Bd3 O-O 8. Qc2 Re8+ 9. Ne2 h5! { the critical answer in the line, defending against the battery and threat against the knight if Ng3 happens } 10. Be3 Nd7 11. O-O-O Nf8 { our extra defender on the king side } 12. Kb1 Be6 13. c4 Rc8 { preparing b5 with tactics against the white queen } 14. Nc3 Bb4 15. Ne4 { avoids the exchange, c push would make the e6 bishop too strong } 15... Be7 { avoid the bishop being trapped, equal position with queen side attacking ideas for black, b5, Qa5 }) 6... Bd6 { almost always our next move } 7. Bd3 O-O 8. O-O Bg4 9. h3 Bh5 { keep the pin } 10. Re1 Nd7 11. c4 Re8 { threat to damage white's kingside pawn strcture make space for the night on f8 } 12. Rxe8+ Qxe8 13. Be3 Rd8 { equal game, our primary target is the d pawn } *
+
+
