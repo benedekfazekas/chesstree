@@ -282,11 +282,173 @@
       z-index: 100;
     }
     #hover-popup img { display: block; }
+
+    /* View toggle */
+    .view-toggle-group {
+      display: flex;
+      border-radius: 4px;
+      overflow: hidden;
+      border: 1px solid var(--btn-border);
+    }
+    .view-toggle {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      padding: 0.25rem 0.65rem;
+      cursor: pointer;
+      font-size: 0.8rem;
+      transition: background 0.15s, color 0.15s;
+    }
+    .view-toggle + .view-toggle { border-left: 1px solid var(--btn-border); }
+    .view-toggle:hover { background: var(--btn-hover); color: var(--text); }
+    .view-toggle.active { background: var(--btn-bg); color: var(--text); font-weight: 600; }
+
+    /* Deck view */
+    #deck-container {
+      flex: 1;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 1.5rem 1rem;
+      gap: 0.75rem;
+    }
+
+    .deck-breadcrumb {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      width: 100%;
+      max-width: 520px;
+    }
+    .deck-breadcrumb-link {
+      color: var(--link-var-stroke);
+      cursor: pointer;
+      text-decoration: underline;
+    }
+    .deck-breadcrumb-link:hover { color: var(--text); }
+    .deck-breadcrumb-sep { color: var(--text-faint); margin: 0 0.25rem; }
+    .deck-breadcrumb-current { color: var(--text); }
+
+    .deck-nav-area {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      width: 100%;
+      max-width: 560px;
+    }
+
+    .deck-arrow {
+      background: var(--btn-bg);
+      border: 1px solid var(--btn-border);
+      color: var(--text);
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      cursor: pointer;
+      font-size: 1rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.15s;
+      flex-shrink: 0;
+    }
+    .deck-arrow:hover:not(.disabled) { background: var(--btn-hover); }
+    .deck-arrow.disabled { opacity: 0.3; cursor: default; }
+
+    .deck-card-wrapper {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .deck-card-content .node-card {
+      width: 100%;
+      height: auto;
+      cursor: default;
+      font-size: 0.85rem;
+      line-height: 1.6;
+      padding: 12px 16px;
+    }
+    .deck-card-content .node-card:hover {
+      border-color: var(--card-border);
+      box-shadow: none;
+    }
+    .deck-card-content .node-card.variation-card:hover {
+      border-color: var(--var-card-border);
+      box-shadow: none;
+    }
+    .deck-card-content .node-image {
+      width: 180px;
+      height: 180px;
+    }
+    .deck-card-content .root-title { font-size: 1rem; }
+    .deck-card-content .root-meta  { font-size: 0.82rem; }
+    .deck-card-content .root-comment { font-size: 0.85rem; }
+
+    .deck-counter {
+      font-size: 0.75rem;
+      color: var(--text-faint);
+    }
+
+    .deck-variations {
+      width: 100%;
+      max-width: 480px;
+      border: 1px solid var(--chrome-border);
+      border-radius: 6px;
+      padding: 8px;
+      background: var(--chrome-bg);
+    }
+    .deck-variations-header {
+      font-size: 0.72rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .deck-var-btn {
+      display: block;
+      width: 100%;
+      text-align: left;
+      background: var(--var-card-bg);
+      border: 1px solid var(--var-card-border);
+      color: var(--text);
+      padding: 6px 10px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 0.8rem;
+      margin-bottom: 4px;
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+    .deck-var-btn:last-child { margin-bottom: 0; }
+    .deck-var-btn:hover {
+      border-color: var(--var-card-hover-border);
+      box-shadow: 0 0 4px var(--var-card-hover-shadow);
+    }
+    .deck-var-move { font-weight: 600; }
+    .deck-var-comment {
+      font-size: 0.74rem;
+      font-style: italic;
+      color: var(--comment-color);
+      margin-top: 2px;
+    }
+
+    /* View-switch animations */
+    #tree-container, #deck-container {
+      transition: opacity 0.28s ease, transform 0.28s ease;
+    }
+    .view-exit       { opacity: 0 !important; }
+    .view-exit-zoom  { opacity: 0 !important; transform: scale(1.12) !important; }
+    .view-exit-shrink{ opacity: 0 !important; transform: scale(0.88) !important; }
+    .view-enter      { opacity: 0 !important; transform: scale(0.97) !important; }
   </style>
 </head>
 <body>
   <header>
     <h1>{{CHESSTREE_TITLE}}</h1>
+    <div class="view-toggle-group">
+      <button id="btn-view-tree" class="view-toggle active" title="Tree view">🌳 Tree</button>
+      <button id="btn-view-deck" class="view-toggle" title="Deck view">📇 Deck</button>
+    </div>
     <button id="btn-theme" title="Toggle light/dark theme">☀ Light</button>
     <button id="btn-reset" title="Re-run layout (R)">↺ Reset</button>
   </header>
@@ -301,10 +463,16 @@
     </svg>
   </div>
 
+  <div id="deck-container" style="display:none"></div>
+
   <div id="help-bar">
-    Click node to collapse/expand children &nbsp;·&nbsp;
-    Drag node to reposition &nbsp;·&nbsp; ⌘/Ctrl+drag to move whole subtree &nbsp;·&nbsp;
-    Scroll to zoom &nbsp;·&nbsp; Drag background to pan &nbsp;·&nbsp; R to reset layout
+    <span id="help-tree">Click node to collapse/expand &nbsp;·&nbsp;
+    Double-click to open in deck &nbsp;·&nbsp;
+    Drag to reposition &nbsp;·&nbsp; ⌘/Ctrl+drag to move subtree &nbsp;·&nbsp;
+    Scroll to zoom &nbsp;·&nbsp; R to reset</span>
+    <span id="help-deck" style="display:none">← → step through cards &nbsp;·&nbsp;
+    Click variation to enter &nbsp;·&nbsp; Esc to go back &nbsp;·&nbsp;
+    Double-click card to open in tree &nbsp;·&nbsp; R to reset</span>
   </div>
 
   <div id="hover-popup"><img id="hover-img" src="" alt="board"></div>
@@ -388,6 +556,9 @@
     let root;
     let nodePositions = new Map();   // id → {x, y} manual overrides
     let collapsedIds  = new Set();   // click: collapse all children
+    let currentView   = 'tree';     // 'tree' or 'deck'
+    let clickTimer    = null;       // single/double-click disambiguation
+    let pendingFocus  = null;       // nodeKey to zoom to after measureAndInit
 
     // -----------------------------------------------------------------------
     // D3 hierarchy + layout
@@ -556,18 +727,31 @@
       nodeEnter
         .call(makeDrag())
         .on("click", function(event, d) {
-          // Only trigger collapse if not a drag
           if (event.defaultPrevented) return;
-          const key = nodeKey(d.data);
-          if (d.data.type === "root") return;
-          if (!(d.data.children && d.data.children.length)) return;
-
-          if (collapsedIds.has(key)) {
-            collapsedIds.delete(key);
-          } else {
-            collapsedIds.add(key);
+          // Disambiguate single vs double click
+          if (clickTimer) { clearTimeout(clickTimer); clickTimer = null; return; }
+          clickTimer = setTimeout(() => {
+            clickTimer = null;
+            const key = nodeKey(d.data);
+            if (d.data.type === "root") return;
+            if (!(d.data.children && d.data.children.length)) return;
+            if (collapsedIds.has(key)) {
+              collapsedIds.delete(key);
+            } else {
+              collapsedIds.add(key);
+            }
+            render();
+          }, 250);
+        })
+        .on("dblclick", function(event, d) {
+          if (clickTimer) { clearTimeout(clickTimer); clickTimer = null; }
+          event.preventDefault();
+          event.stopPropagation();
+          const stack = buildDeckStackForNode(d.data);
+          if (stack) {
+            deckState.stack = stack;
+            animateSwitch('deck', 'view-exit-zoom', { skipInit: true });
           }
-          render();
         });
 
       // Update existing nodes
@@ -849,18 +1033,34 @@
     // -----------------------------------------------------------------------
     document.addEventListener("keydown", function(e) {
       if (e.key === "r" || e.key === "R") {
-        nodePositions.clear();
-        collapsedIds.clear();
-        measuredHeights.clear();
-        measureAndInit();
+        if (currentView === 'tree') {
+          nodePositions.clear();
+          collapsedIds.clear();
+          measuredHeights.clear();
+          measureAndInit();
+        } else {
+          initDeck();
+          renderDeck();
+        }
+        return;
+      }
+      if (currentView === 'deck') {
+        if (e.key === "ArrowRight") { e.preventDefault(); deckNext(); }
+        else if (e.key === "ArrowLeft") { e.preventDefault(); deckPrev(); }
+        else if (e.key === "Escape") { e.preventDefault(); deckBack(); }
       }
     });
 
     document.getElementById("btn-reset").addEventListener("click", function() {
-      nodePositions.clear();
-      collapsedIds.clear();
-      measuredHeights.clear();
-      measureAndInit();
+      if (currentView === 'tree') {
+        nodePositions.clear();
+        collapsedIds.clear();
+        measuredHeights.clear();
+        measureAndInit();
+      } else {
+        initDeck();
+        renderDeck();
+      }
     });
 
     // -----------------------------------------------------------------------
@@ -929,9 +1129,313 @@
         });
         offscreen.remove();
         render();
-        fitView();
+        if (pendingFocus) {
+          focusTreeNode(pendingFocus);
+          pendingFocus = null;
+        } else {
+          fitView();
+        }
       }));
     }
+
+    // -----------------------------------------------------------------------
+    // Deck view
+    // -----------------------------------------------------------------------
+    const deckState = { stack: [] };
+
+    function initDeck() {
+      const mainLine = [treeData];
+      (treeData.children || []).forEach(c => {
+        if (c.isMainLine) mainLine.push(c);
+      });
+      deckState.stack = [{ items: mainLine, index: 0 }];
+    }
+
+    function currentDeckLevel() {
+      return deckState.stack[deckState.stack.length - 1];
+    }
+
+    function deckNext() {
+      const level = currentDeckLevel();
+      if (level.index < level.items.length - 1) {
+        level.index++;
+        renderDeck();
+      }
+    }
+
+    function deckPrev() {
+      const level = currentDeckLevel();
+      if (level.index > 0) {
+        level.index--;
+        renderDeck();
+      }
+    }
+
+    function deckEnterVariation(parentItem, varIndex) {
+      const variations = getDeckVariations(parentItem);
+      if (!variations.length || varIndex >= variations.length) return;
+      deckState.stack.push({ items: variations, index: varIndex });
+      renderDeck();
+    }
+
+    function deckBack() {
+      if (deckState.stack.length > 1) {
+        deckState.stack.pop();
+        renderDeck();
+      }
+    }
+
+    function getDeckVariations(item) {
+      if (!item.children || !item.children.length) return [];
+      if (item.type === 'root') {
+        return item.children.filter(c => !c.isMainLine);
+      }
+      return item.children;
+    }
+
+    function renderDeck() {
+      const container = document.getElementById('deck-container');
+      const level = currentDeckLevel();
+      const item = level.items[level.index];
+      const hasPrev = level.index > 0;
+      const hasNext = level.index < level.items.length - 1;
+      const variations = getDeckVariations(item);
+
+      // Breadcrumb
+      let breadcrumbHTML = '';
+      deckState.stack.forEach((lvl, i) => {
+        if (i > 0) breadcrumbHTML += ' <span class="deck-breadcrumb-sep">\u203a</span> ';
+        let label;
+        if (i === 0) {
+          label = 'Main line';
+        } else {
+          const lvlItem = lvl.items[lvl.index];
+          label = lvlItem.edgeLabel ? lvlItem.edgeLabel.move : 'Variation';
+        }
+        if (i < deckState.stack.length - 1) {
+          breadcrumbHTML += `<a class="deck-breadcrumb-link" data-level="${i}">${esc(label)}</a>`;
+        } else {
+          breadcrumbHTML += `<span class="deck-breadcrumb-current">${esc(label)}</span>`;
+        }
+      });
+
+      // Card HTML
+      let cardHTML;
+      if (item.type === 'root') {
+        cardHTML = buildRootHTML(item);
+      } else {
+        cardHTML = buildSegmentHTML({ data: item }, item);
+      }
+
+      // Variation buttons
+      let variationsHTML = '';
+      if (variations.length) {
+        variationsHTML = '<div class="deck-variations">';
+        variationsHTML += '<div class="deck-variations-header">Variations</div>';
+        variations.forEach((v, i) => {
+          const edge = v.edgeLabel;
+          let btnContent = '';
+          if (edge) {
+            if (edge.startingComment) {
+              btnContent += `<div class="deck-var-comment">${esc(edge.startingComment.join(' '))}</div>`;
+            }
+            btnContent += `<span class="deck-var-move${edge.nagClass ? ' ' + edge.nagClass : ''}">${esc(edge.move)}</span>`;
+            if (edge.comment) {
+              btnContent += `<div class="deck-var-comment">${esc(edge.comment.join(' '))}</div>`;
+            }
+          } else {
+            btnContent = `Variation ${i + 1}`;
+          }
+          variationsHTML += `<button class="deck-var-btn" data-var-index="${i}">${btnContent}</button>`;
+        });
+        variationsHTML += '</div>';
+      }
+
+      container.innerHTML = `
+        <div class="deck-breadcrumb">${breadcrumbHTML}</div>
+        <div class="deck-nav-area">
+          <button class="deck-arrow${hasPrev ? '' : ' disabled'}" id="deck-prev" ${hasPrev ? '' : 'disabled'} title="Previous (\u2190)">\u25c0</button>
+          <div class="deck-card-wrapper">
+            <div class="deck-card-content">${cardHTML}</div>
+          </div>
+          <button class="deck-arrow${hasNext ? '' : ' disabled'}" id="deck-next" ${hasNext ? '' : 'disabled'} title="Next (\u2192)">\u25b6</button>
+        </div>
+        <div class="deck-counter">${level.index + 1} / ${level.items.length}</div>
+        ${variationsHTML}
+      `;
+
+      const prevBtn = container.querySelector('#deck-prev');
+      const nextBtn = container.querySelector('#deck-next');
+      if (prevBtn) prevBtn.addEventListener('click', deckPrev);
+      if (nextBtn) nextBtn.addEventListener('click', deckNext);
+
+      container.querySelectorAll('.deck-var-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          deckEnterVariation(item, parseInt(btn.dataset.varIndex));
+        });
+      });
+
+      container.querySelectorAll('.deck-breadcrumb-link').forEach(link => {
+        link.addEventListener('click', () => {
+          deckState.stack.length = parseInt(link.dataset.level) + 1;
+          renderDeck();
+        });
+      });
+
+      // Double-click card to explode back to tree view
+      const cardEl = container.querySelector('.deck-card-content');
+      if (cardEl) {
+        cardEl.addEventListener('dblclick', () => {
+          animateSwitch('tree', 'view-exit-shrink', { focusNodeData: item });
+        });
+      }
+    }
+
+    // -----------------------------------------------------------------------
+    // View switching (animated)
+    // -----------------------------------------------------------------------
+    function updateViewUI() {
+      const btnTree = document.getElementById('btn-view-tree');
+      const btnDeck = document.getElementById('btn-view-deck');
+      const helpTree = document.getElementById('help-tree');
+      const helpDeck = document.getElementById('help-deck');
+
+      if (currentView === 'tree') {
+        btnTree.classList.add('active');
+        btnDeck.classList.remove('active');
+        helpTree.style.display = '';
+        helpDeck.style.display = 'none';
+      } else {
+        btnTree.classList.remove('active');
+        btnDeck.classList.add('active');
+        helpTree.style.display = 'none';
+        helpDeck.style.display = '';
+      }
+    }
+
+    function animateSwitch(targetView, exitClass, options) {
+      if (targetView === currentView) return;
+      options = options || {};
+
+      const treeC = document.getElementById('tree-container');
+      const deckC = document.getElementById('deck-container');
+      const outEl = currentView === 'tree' ? treeC : deckC;
+      const inEl  = targetView === 'tree' ? treeC : deckC;
+
+      outEl.classList.add(exitClass || 'view-exit');
+
+      setTimeout(() => {
+        outEl.style.display = 'none';
+        outEl.classList.remove('view-exit', 'view-exit-zoom', 'view-exit-shrink');
+
+        currentView = targetView;
+        updateViewUI();
+
+        if (targetView === 'deck') {
+          if (!options.skipInit) initDeck();
+          renderDeck();
+        }
+
+        if (targetView === 'tree' && options.focusNodeData) {
+          pendingFocus = options.focusNodeData;
+          collapsedIds.clear();
+          nodePositions.clear();
+          measuredHeights.clear();
+          measureAndInit();
+        }
+
+        inEl.classList.add('view-enter');
+        inEl.style.display = '';
+
+        requestAnimationFrame(() => requestAnimationFrame(() => {
+          inEl.classList.remove('view-enter');
+        }));
+      }, 280);
+    }
+
+    // Path-finding: build the deck navigation stack to reach a specific node
+    function findPathToNode(root, target) {
+      if (root === target) return [root];
+      for (const child of (root.children || [])) {
+        const sub = findPathToNode(child, target);
+        if (sub) return [root, ...sub];
+      }
+      return null;
+    }
+
+    function buildDeckStackForNode(targetData) {
+      const path = findPathToNode(treeData, targetData);
+      if (!path) return null;
+
+      const mainLine = [treeData];
+      (treeData.children || []).forEach(c => {
+        if (c.isMainLine) mainLine.push(c);
+      });
+
+      if (targetData === treeData) {
+        return [{ items: mainLine, index: 0 }];
+      }
+
+      const stack = [];
+      const firstChild = path[1];
+
+      if (firstChild.isMainLine) {
+        const mainIdx = mainLine.indexOf(firstChild);
+        stack.push({ items: mainLine, index: mainIdx >= 0 ? mainIdx : 1 });
+      } else {
+        stack.push({ items: mainLine, index: 0 });
+        const rootVars = getDeckVariations(treeData);
+        const varIdx = rootVars.indexOf(firstChild);
+        stack.push({ items: rootVars, index: varIdx >= 0 ? varIdx : 0 });
+      }
+
+      for (let i = 2; i < path.length; i++) {
+        const parent = path[i - 1];
+        const node = path[i];
+        if (node.isMainLine) {
+          stack[0].index = mainLine.indexOf(node);
+        } else {
+          const vars = getDeckVariations(parent);
+          const idx = vars.indexOf(node);
+          stack.push({ items: vars, index: idx >= 0 ? idx : 0 });
+        }
+      }
+
+      return stack;
+    }
+
+    // Zoom the tree view to center on a specific data node
+    function focusTreeNode(targetData) {
+      const hierRoot = buildHierarchy(treeData);
+      runLayout(hierRoot);
+      hierRoot.each(d => {
+        const k = nodeKey(d.data);
+        if (nodePositions.has(k)) {
+          const pos = nodePositions.get(k);
+          d.x = pos.x; d.y = pos.y;
+        }
+      });
+
+      const targetKey = nodeKey(targetData);
+      const target = hierRoot.descendants().find(d => nodeKey(d.data) === targetKey);
+      if (!target) { fitView(); return; }
+
+      const container = document.getElementById('tree-container');
+      const W = container.clientWidth;
+      const H = container.clientHeight;
+      const scale = 1.0;
+      const tx = W / 2 - target.y * scale;
+      const ty = H / 2 - target.x * scale;
+
+      svg.transition().duration(500)
+        .call(zoom.transform, d3.zoomIdentity.translate(tx, ty).scale(scale));
+    }
+
+    document.getElementById('btn-view-tree').addEventListener('click', () => animateSwitch('tree', 'view-exit'));
+    document.getElementById('btn-view-deck').addEventListener('click', () => {
+      initDeck();
+      animateSwitch('deck', 'view-exit', { skipInit: true });
+    });
 
     // -----------------------------------------------------------------------
     // Initial render

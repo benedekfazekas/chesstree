@@ -282,13 +282,21 @@ open output/game.html
 
 Features of the viewer:
 
-- **Dark theme** with colour-coded nodes: main-line segments (blue) are visually distinct from variation segments (purple).
-- **Node headers** show the line type and move range, e.g. "Main line: 1–12" or "Variation: 8–10".
-- **Collapsible nodes** — click any node to hide its variation children while keeping the main-line continuation visible. A badge in the header shows how many nodes are hidden. Ctrl+click collapses all children including the main-line continuation.
-- **Pan and zoom** via scroll and drag.
-- **Drag-to-reposition** individual nodes.
-- **Hover board images** (optional, see `-a` below).
-- **R key / ↺ Reset button** restores the automatic layout.
+- **Tree view** (default) — a full interactive tree layout:
+  - **Dark theme** with colour-coded nodes: main-line segments (blue) are visually distinct from variation segments (purple).
+  - **Node headers** show the line type and move range, e.g. "Main line: 1–12" or "Variation: 8–10".
+  - **Collapsible nodes** — click any node to hide its variation children while keeping the main-line continuation visible. A badge in the header shows how many nodes are hidden. Ctrl+click collapses all children including the main-line continuation.
+  - **Pan and zoom** via scroll and drag.
+  - **Drag-to-reposition** individual nodes.
+  - **Hover board images** (optional, see `-a` below).
+  - **R key / ↺ Reset button** restores the automatic layout.
+- **Deck view** — a sequential card-by-card navigator (toggle with the 📇 Deck button):
+  - Step through game info and main-line segments one card at a time with ← → arrow keys or on-screen buttons.
+  - When a card has variations, clickable buttons appear below showing each variation's first move and optional comment (mirroring the tree's edge labels).
+  - Click a variation button to enter it; use ← → to step between sibling variations at the same branch point. Sub-variations are accessible the same way.
+  - A breadcrumb trail shows your position in the tree and lets you jump back to any ancestor level. Press Escape to go up one level.
+- **Cross-view navigation** — double-click any node in the tree to open it directly in the deck view (with a zoom animation); double-click a deck card to jump back to the tree view centered on that node.
+- **Light/dark theme toggle** applies to both views.
 
 #### Board images in d3html
 
