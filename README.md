@@ -2,6 +2,12 @@
 
 A command-line tool for converting chess games between PGN, JSON, EDN, GraphViz DOT, and interactive HTML formats. It accepts PGN or chesstree JSON as input (auto-detected from the file extension) and can output JSON, EDN, PGN, DOT, dothtml, or d3html via the `-f`/`--format` flag. JSON output includes move number, SAN and UCI notation, FEN positions, comments, NAGs, and variations. DOT output models the game tree as a left-to-right digraph suitable for rendering with GraphViz tools. The `dothtml` format wraps the DOT graph in a self-contained browser viewer powered by [d3-graphviz](https://github.com/magjac/d3-graphviz), with pan, zoom, and board images included. The `d3html` format produces a purpose-built interactive D3.js tree viewer with collapsible nodes, variation highlighting, optional hover board images, and a dark-themed layout — no GraphViz dependency required.
 
+As a taster how the `d3html` looks and works:
+
+![chesstree interactive d3html viewer](chesstree-interactive-caro-kann-exc.gif)
+
+▶ See [d3html output — interactive D3.js tree viewer](#d3html-output--interactive-d3js-tree-viewer) for full details.
+
 ## Output format
 
 The tool produces a JSON (or EDN) object with four top-level keys:
@@ -373,6 +379,14 @@ Round-trip a game through JSON:
 chesstree -i game.pgn -o game.json
 chesstree -i game.json -f pgn -o game_restored.pgn
 ```
+
+---
+
+## Credits
+
+`chesstree` is built heavily on top of [python-chess](https://python-chess.readthedocs.io/en/latest/)
+by Niklas Fiekas. `python-chess` provides PGN parsing, board state management, FEN generation, NAG
+handling, and SVG board rendering — the core of what makes `chesstree` work.
 
 ---
 
