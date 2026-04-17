@@ -2,7 +2,7 @@
 
 A command-line tool for converting chess games between PGN, JSON, EDN, GraphViz DOT, and interactive HTML formats. It accepts PGN or chesstree JSON as input (auto-detected from the file extension) and can output JSON, EDN, PGN, DOT, dothtml, or d3html via the `-f`/`--format` flag. JSON output includes move number, SAN and UCI notation, FEN positions, comments, NAGs, and variations. DOT output models the game tree as a left-to-right digraph suitable for rendering with GraphViz tools. The `dothtml` format wraps the DOT graph in a self-contained browser viewer powered by [d3-graphviz](https://github.com/magjac/d3-graphviz), with pan, zoom, and board images included. The `d3html` format produces a purpose-built interactive D3.js tree viewer with collapsible nodes, variation highlighting, optional hover board images, and a dark-themed layout — no GraphViz dependency required.
 
-As a taster how the `d3html` looks and works:
+As a taster how the `d3html` format looks and works:
 
 ![chesstree interactive d3html viewer](chesstree-interactive-caro-kann-exc.gif)
 
