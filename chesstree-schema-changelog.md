@@ -8,7 +8,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ---
 
-## [1.0.0] — 2026-04-04
+## [1.0.0] — 2026-05-01
 
 Schema declared **stable**. The backward compatibility contract defined in
 [docs/schema.md §10](docs/schema.md#10-schema-versioning-and-compatibility)
