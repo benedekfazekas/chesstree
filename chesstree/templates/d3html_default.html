@@ -307,11 +307,17 @@
     #deck-container {
       flex: 1;
       overflow-y: auto;
+      overflow-x: auto;
+      touch-action: pan-x pan-y;
+    }
+
+    #deck-scale-wrapper {
       display: flex;
       flex-direction: column;
       align-items: center;
       padding: 1.5rem 1rem;
       gap: 0.75rem;
+      min-width: 100%;
     }
 
     .deck-breadcrumb {
@@ -472,7 +478,8 @@
     Scroll to zoom &nbsp;·&nbsp; R to reset</span>
     <span id="help-deck" style="display:none">← → step through cards &nbsp;·&nbsp;
     Click variation to enter &nbsp;·&nbsp; Esc to go back &nbsp;·&nbsp;
-    Double-click card to open in tree &nbsp;·&nbsp; R to reset</span>
+    Double-click card to open in tree &nbsp;·&nbsp;
+    Pinch to zoom · drag to pan when zoomed &nbsp;·&nbsp; R to reset</span>
   </div>
 
   <div id="hover-popup"><img id="hover-img" src="" alt="board"></div>
@@ -559,6 +566,24 @@
     let currentView   = 'tree';     // 'tree' or 'deck'
     let clickTimer    = null;       // single/double-click disambiguation
     let pendingFocus  = null;       // nodeKey to zoom to after measureAndInit
+
+    // Deck pinch-to-zoom state
+    let deckScale      = 1.0;
+    const DECK_SCALE_MIN = 0.8;
+    const DECK_SCALE_MAX = 2.5;
+    let _pinchStartDist  = null;
+    let _pinchStartScale = 1.0;
+
+    function _pinchDist(touches) {
+      const dx = touches[0].clientX - touches[1].clientX;
+      const dy = touches[0].clientY - touches[1].clientY;
+      return Math.sqrt(dx * dx + dy * dy);
+    }
+
+    function applyDeckScale() {
+      const wrapper = document.getElementById('deck-scale-wrapper');
+      if (wrapper) wrapper.style.zoom = deckScale;
+    }
 
     // -----------------------------------------------------------------------
     // D3 hierarchy + layout
@@ -1039,6 +1064,7 @@
           measuredHeights.clear();
           measureAndInit();
         } else {
+          deckScale = 1.0;
           initDeck();
           renderDeck();
         }
@@ -1058,6 +1084,7 @@
         measuredHeights.clear();
         measureAndInit();
       } else {
+        deckScale = 1.0;
         initDeck();
         renderDeck();
       }
@@ -1251,7 +1278,7 @@
         variationsHTML += '</div>';
       }
 
-      container.innerHTML = `
+      container.innerHTML = `<div id="deck-scale-wrapper">
         <div class="deck-breadcrumb">${breadcrumbHTML}</div>
         <div class="deck-nav-area">
           <button class="deck-arrow${hasPrev ? '' : ' disabled'}" id="deck-prev" ${hasPrev ? '' : 'disabled'} title="Previous (\u2190)">\u25c0</button>
@@ -1262,7 +1289,8 @@
         </div>
         <div class="deck-counter">${level.index + 1} / ${level.items.length}</div>
         ${variationsHTML}
-      `;
+      </div>`;
+      applyDeckScale();
 
       const prevBtn = container.querySelector('#deck-prev');
       const nextBtn = container.querySelector('#deck-next');
@@ -1436,6 +1464,54 @@
       initDeck();
       animateSwitch('deck', 'view-exit', { skipInit: true });
     });
+
+    // -----------------------------------------------------------------------
+    // Deck pinch-to-zoom touch handlers
+    // -----------------------------------------------------------------------
+    const deckContainer = document.getElementById('deck-container');
+
+    deckContainer.addEventListener('touchstart', function(e) {
+      if (e.touches.length === 2) {
+        _pinchStartDist  = _pinchDist(e.touches);
+        _pinchStartScale = deckScale;
+      }
+    }, { passive: true });
+
+    deckContainer.addEventListener('touchmove', function(e) {
+      if (currentView !== 'deck') return;
+      if (e.touches.length !== 2 || _pinchStartDist === null) return;
+      e.preventDefault();
+
+      const dist = _pinchDist(e.touches);
+      const newScale = Math.min(DECK_SCALE_MAX, Math.max(DECK_SCALE_MIN,
+        _pinchStartScale * dist / _pinchStartDist));
+      if (newScale === deckScale) return;
+
+      // Record the content point under the pinch midpoint before scaling
+      const rect = deckContainer.getBoundingClientRect();
+      const midXClient = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+      const midYClient = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+      const midXContent = (deckContainer.scrollLeft + midXClient - rect.left) / deckScale;
+      const midYContent = (deckContainer.scrollTop  + midYClient - rect.top)  / deckScale;
+
+      deckScale = newScale;
+      applyDeckScale();
+
+      // After the browser reflows the zoomed layout, re-anchor the scroll
+      // so the same content point stays under the fingers.
+      requestAnimationFrame(() => {
+        deckContainer.scrollLeft = Math.max(0, midXContent * deckScale - (midXClient - rect.left));
+        deckContainer.scrollTop  = Math.max(0, midYContent * deckScale - (midYClient - rect.top));
+      });
+    }, { passive: false });
+
+    deckContainer.addEventListener('touchend', function(e) {
+      if (e.touches.length < 2) _pinchStartDist = null;
+    }, { passive: true });
+
+    deckContainer.addEventListener('touchcancel', function() {
+      _pinchStartDist = null;
+    }, { passive: true });
 
     // -----------------------------------------------------------------------
     // Initial render
