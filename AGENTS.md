@@ -7,7 +7,7 @@ Guidelines for AI agents working on the `chesstree` project.
 ## Project overview
 
 `chesstree` is a Python CLI tool that converts chess games between PGN, JSON, EDN, GraphViz DOT,
-and d3-graphviz HTML (`dothtml`) formats. It is installed as a single `chesstree` command via
+d3-graphviz HTML (`dothtml`), and d3 hierarchy HTML (`d3html`) formats. It is installed as a single `chesstree` command via
 `pip install -e .` and uses the `python-chess` library for PGN parsing and SVG board generation.
 
 ---
@@ -96,8 +96,11 @@ implementing. Save the plan to the session state `plan.md`. Break the plan into 
 | `json_parser.py` | chesstree JSON → `chess.pgn.Game` |
 | `dot_exporter.py` | `chess.pgn.Game` → DOT string + `{filename: svg}` dict |
 | `dothtml_exporter.py` | Wraps `export_dot`, substitutes into HTML template |
+| `d3tree_exporter.py` | `chess.pgn.Game` → D3 hierarchy JSON tree |
+| `d3html_exporter.py` | Wraps `export_d3tree`, substitutes into d3html template |
 | `utils.py` | Shared helpers: `has_real_comment()`, `_PGN_COMMAND_ANNOTATION_RE` |
 | `templates/dothtml_default.html` | Default d3-graphviz viewer template |
+| `templates/d3html_default.html` | Default d3 hierarchy viewer template |
 
 ### `export_dot` return type
 Returns `tuple[str, dict[str, str]]` — the DOT string and a filename→SVG-content dict.
@@ -191,6 +194,8 @@ listing the missing ones.
 | `test_json_exporter.py` | JSON/EDN export, `collect_image_fens` |
 | `test_dot_exporter.py` | DOT export, image dict, NAG coloring |
 | `test_dothtml_exporter.py` | HTML export, template validation, JS escaping |
+| `test_d3tree_exporter.py` | D3 hierarchy JSON tree export |
+| `test_d3html_exporter.py` | d3html HTML export, template validation |
 | `test_cli.py` | CLI argument parsing and dispatch |
 | `test_functional.py` | End-to-end round-trips using real PGN samples |
 | `test_utils.py` | `has_real_comment()` and annotation-stripping logic |
