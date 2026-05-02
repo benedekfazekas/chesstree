@@ -61,8 +61,8 @@ class SchemaValidator:
             f"{path}: schema_version should be str",
         )
         self.check(
-            data.get("schema_version") == "1.1.0",
-            f"{path}: schema_version should be '1.1.0'",
+            data.get("schema_version") == "1.2.0",
+            f"{path}: schema_version should be '1.2.0'",
         )
 
         r = data.get("result")
@@ -246,6 +246,25 @@ class SchemaValidator:
             "board_img_after" not in entry,
             f"{path}: board_img_after should not be present",
         )
+
+        if "raw_annotations" in entry:
+            self.check(
+                isinstance(entry["raw_annotations"], list),
+                f"{path}: raw_annotations should be list",
+            )
+            self.check(
+                len(entry["raw_annotations"]) > 0,
+                f"{path}: raw_annotations should not be empty list (should be absent)",
+            )
+            for ri, ra in enumerate(entry.get("raw_annotations", [])):
+                self.check(
+                    isinstance(ra, str),
+                    f"{path}.raw_annotations[{ri}]: should be str",
+                )
+                self.check(
+                    ra.startswith("[%") and ra.endswith("]"),
+                    f"{path}.raw_annotations[{ri}]: should match [%...] pattern, got {ra!r}",
+                )
 
     # -- §4: Variation wrapper -----------------------------------------------
 

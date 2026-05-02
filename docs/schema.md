@@ -1,6 +1,6 @@
 # chesstree JSON/EDN Schema Specification
 
-**Schema version:** `1.1.0`
+**Schema version:** `1.2.0`
 
 This document is the normative specification for the JSON and EDN output produced
 by `chesstree`. It defines every field, its type, whether it is required or
@@ -36,7 +36,7 @@ The top-level value is a JSON object (EDN map) with four required fields:
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `schema_version` | string | **yes** | SemVer version of this schema (currently `"1.1.0"`). |
+| `schema_version` | string | **yes** | SemVer version of this schema (currently `"1.2.0"`). |
 | `headers` | object | **yes** | PGN header tag pairs. May be empty (`{}`) if headers were suppressed. |
 | `moves` | array | **yes** | Ordered list of [move entries](#3-move-entry) and [variation wrappers](#4-variation-wrapper). |
 | `result` | string \| null | **yes** | Game termination marker: `"1-0"`, `"0-1"`, `"1/2-1/2"`, `"*"`, or `null`. |
@@ -127,6 +127,7 @@ available" — **not** as an empty list or zero.
 | `emt` | number (float) | Present when a `[%emt]` annotation exists. Value is elapsed seconds. |
 | `eval` | object | Present when a `[%eval]` annotation exists. See [§7](#7-command-annotations). |
 | `arrows` | array of objects | Present when `[%csl]` / `[%cal]` annotations exist. See [§7](#7-command-annotations). |
+| `raw_annotations` | array of strings | Present when any `[%...]` annotation exists. See [§7](#7-command-annotations). |
 
 ### Unknown keys on move entries
 
@@ -368,6 +369,29 @@ An array of arrow/circle objects, extracted from `[%csl]` (colored squares) and
 | `head` | string | Target square. When `tail == head`, this is a colored square highlight (circle), not an arrow. |
 | `color` | string | Color name (e.g. `"green"`, `"red"`, `"blue"`, `"yellow"`). |
 
+### `raw_annotations`
+
+An array of strings capturing every `[%...]` token from the move's PGN comment
+verbatim, in source order. This includes both the five structured annotations
+(`[%clk]`, `[%emt]`, `[%eval]`, `[%csl]`, `[%cal]`) and any unrecognised
+annotations (e.g. `[%draw]`, `[%pm]`, or future extensions).
+
+```json
+"raw_annotations": ["[%clk 0:05:00]", "[%eval 0.30,20]", "[%draw]"]
+```
+
+| Property | Rule |
+|----------|------|
+| Type | Array of strings. |
+| Ordering | Source order — the order the tokens appear in the PGN comment. |
+| Content | Each element is the complete annotation token including brackets and arguments, e.g. `"[%clk 0:05:00]"`. |
+| Absent | When the move has no `[%...]` annotations at all. Never present as `[]`. |
+| Suppressed | When the exporter is invoked with `comments=False`. |
+
+The structured fields (`clock`, `emt`, `eval`, `arrows`) are extracted in
+parallel and are unaffected by this field. `raw_annotations` is a complementary
+pass-through for downstream consumers that need the unprocessed annotation text.
+
 ### Omission rules
 
 Each command annotation field is present only when the corresponding PGN
@@ -400,6 +424,7 @@ preserved, what is transformed, and what is discarded.
 | Elapsed time (`[%emt]`) | `emt` field (float seconds). |
 | Engine evaluation (`[%eval]`) | `eval` object (`cp` or `mate`, optional `depth`). |
 | Colored squares/arrows (`[%csl]`, `[%cal]`) | `arrows` array of `{tail, head, color}` objects. |
+| All `[%...]` command annotations (verbatim) | `raw_annotations` list of strings, in source order. |
 
 ### Transformed
 
@@ -414,7 +439,6 @@ preserved, what is transformed, and what is discarded.
 
 | PGN element | Reason |
 |-------------|--------|
-| Unrecognised `[%...]` command annotations | Stripped from comments. No structured field is created for unknown commands. The raw text is lost. |
 | Exact original segmentation of adjacent variation-start comment blocks | Current `python-chess` may merge adjacent comments before `chesstree` receives them, so a wrapper `comments` list can contain fewer elements than the source brace blocks. |
 
 ### Round-trip fidelity
@@ -512,11 +536,11 @@ semantics. The `schema_version` value is the same string in both formats.
 
 Every chesstree JSON/EDN document contains a `schema_version` field as the
 first key of the top-level object. The value is a [SemVer 2.0.0](https://semver.org/)
-string (e.g. `"0.1.0"`, `"1.1.0"`).
+string (e.g. `"0.1.0"`, `"1.2.0"`).
 
 ### Current version
 
-The current schema version is **`1.1.0`**.
+The current schema version is **`1.2.0`**.
 
 ### Stability
 
@@ -561,7 +585,7 @@ Optional fields are shown where they occur naturally.
 
 ```json
 {
-  "schema_version": "1.1.0",
+  "schema_version": "1.2.0",
   "headers": {
     "Event": "Dortmund Sparkassen",
     "Site": "Dortmund GER",
@@ -645,7 +669,7 @@ Optional fields are shown where they occur naturally.
 ### EDN equivalent (excerpt)
 
 ```edn
-{:schema-version "1.1.0"
+{:schema-version "1.2.0"
  :headers {:Event "Dortmund Sparkassen"
            :White "Vladimir Kramnik"
            :Black "Anatoly Karpov"
@@ -686,6 +710,7 @@ a human comment.
     { "tail": "f8", "head": "f8", "color": "green" },
     { "tail": "a3", "head": "f8", "color": "green" }
   ],
+  "raw_annotations": ["[%csl Gf8]", "[%cal Ga3f8]"],
   "comments": [
     "Black opens a line for the bishop to retreat and protect the king, but it loses time and allows white to take the initiative."
   ]

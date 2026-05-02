@@ -45,7 +45,7 @@ except ImportError:
     from typing_extensions import override
 
 
-_CURRENT_SCHEMA_VERSION = "1.1.0"
+_CURRENT_SCHEMA_VERSION = "1.2.0"
 
 
 def _standardize_comments(comment: Union[str, List[str]]) -> List[str]:
@@ -224,6 +224,9 @@ class JsonExporter(BaseVisitor[str]):
             annotations = _extract_command_annotations(raw_text)
             if annotations:
                 self.current_variation[-1].update(annotations)
+            raw_annotations = _PGN_COMMAND_ANNOTATION_RE.findall(raw_text)
+            if raw_annotations:
+                self.current_variation[-1]["raw_annotations"] = raw_annotations
         comments = [
             _PGN_COMMAND_ANNOTATION_RE.sub("", c).strip()
             for c in raw_comments

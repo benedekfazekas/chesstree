@@ -67,7 +67,7 @@ class TestJsonExporter:
         game = _parse_game(SIMPLE_PGN)
         exporter = JsonExporter()
         data = json.loads(game.accept(exporter))
-        assert data["schema_version"] == "1.1.0"
+        assert data["schema_version"] == "1.2.0"
 
     def test_schema_version_is_first_key(self):
         game = _parse_game(SIMPLE_PGN)
@@ -79,7 +79,7 @@ class TestJsonExporter:
         game = _parse_game(SIMPLE_PGN)
         exporter = JsonExporter(edn=True)
         result = game.accept(exporter)
-        assert result.startswith('{:schema-version "1.1.0"')
+        assert result.startswith('{:schema-version "1.2.0"')
 
     def test_headers_included(self):
         game = _parse_game(SIMPLE_PGN)
@@ -601,6 +601,45 @@ class TestCommandAnnotations:
         assert moves[0]["clock"] == pytest.approx(300.0)
         assert moves[0]["comments"] == ["note"]
 
+    def test_raw_annotations_known_only(self):
+        """raw_annotations contains all known annotation tokens verbatim."""
+        e4 = self._moves()[0]
+        assert "raw_annotations" in e4
+        assert "[%clk 0:09:57]" in e4["raw_annotations"]
+        assert "[%eval 0.30,20]" in e4["raw_annotations"]
+
+    def test_raw_annotations_source_order(self):
+        """raw_annotations preserves source order."""
+        e4 = self._moves()[0]
+        tokens = e4["raw_annotations"]
+        clk_idx = tokens.index("[%clk 0:09:57]")
+        eval_idx = tokens.index("[%eval 0.30,20]")
+        assert clk_idx < eval_idx
+
+    def test_raw_annotations_unknown_command(self):
+        """Unknown [%...] tokens appear in raw_annotations."""
+        moves = self._moves("[Result \"*\"]\n1. e4 { [%foo bar] [%clk 0:05:00] note } *\n")
+        assert "raw_annotations" in moves[0]
+        assert "[%foo bar]" in moves[0]["raw_annotations"]
+        assert "[%clk 0:05:00]" in moves[0]["raw_annotations"]
+
+    def test_raw_annotations_mixed_known_and_unknown(self):
+        """raw_annotations includes both known and unknown tokens together."""
+        moves = self._moves("[Result \"*\"]\n1. e4 { [%clk 0:05:00] [%draw] } *\n")
+        tokens = moves[0]["raw_annotations"]
+        assert "[%clk 0:05:00]" in tokens
+        assert "[%draw]" in tokens
+
+    def test_raw_annotations_absent_when_no_annotations(self):
+        """raw_annotations is absent on moves with only human comments."""
+        moves = self._moves("[Result \"*\"]\n1. e4 { just a comment } *\n")
+        assert "raw_annotations" not in moves[0]
+
+    def test_raw_annotations_absent_when_no_comment(self):
+        """raw_annotations is absent on moves with no comment at all."""
+        moves = self._moves("[Result \"*\"]\n1. e4 *\n")
+        assert "raw_annotations" not in moves[0]
+
     def test_no_command_annotations_when_comments_false(self):
         game = chess.pgn.read_game(io.StringIO(COMMAND_PGN))
         data = json.loads(game.accept(JsonExporter(comments=False)))
@@ -609,6 +648,7 @@ class TestCommandAnnotations:
                 assert "clock" not in move
                 assert "eval" not in move
                 assert "arrows" not in move
+                assert "raw_annotations" not in move
 
     def test_edn_output_contains_clock_field(self):
         game = chess.pgn.read_game(io.StringIO("[Result \"*\"]\n1. e4 { [%clk 0:05:00] } *\n"))

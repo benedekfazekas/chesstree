@@ -10,7 +10,7 @@ import chess.engine
 import chess.pgn
 import chess.svg
 
-_CURRENT_SCHEMA_VERSION = "1.1.0"
+_CURRENT_SCHEMA_VERSION = "1.2.0"
 _SEMVER_RE = re.compile(r"^(\d+)\.(\d+)\.(\d+)$")
 
 

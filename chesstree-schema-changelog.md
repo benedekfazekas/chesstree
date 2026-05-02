@@ -8,9 +8,32 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ---
 
+## [1.2.0] — 2026-05-02
+
+Implements #24. All PGN command annotations are now preserved verbatim on
+move entries.
+
+### Added
+
+- `raw_annotations` field (array of strings) on move entries. When a move's
+  PGN comment contains any `[%...]` command annotations, they are collected
+  verbatim into this list in source order. The list includes **all**
+  annotations — both the five handled ones (`[%clk]`, `[%emt]`, `[%eval]`,
+  `[%csl]`, `[%cal]`) and any unrecognised ones (e.g. `[%draw]`, `[%pm]`).
+  Absent when the move has no command annotations. Suppressed when the
+  exporter is run with `comments=False`.
+
+### Fidelity
+
+Previously unrecognised `[%...]` annotations were silently discarded after
+stripping. They are now preserved in `raw_annotations`, making chesstree
+lossless with respect to all command annotations.
+
+---
+
 ## [1.1.0] — 2026-05-02
 
-Variation-wrapper comments standardised on a `comments` list.
+Implement #23. Variation-wrapper comments standardised on a `comments` list.
 
 ### Changed
 
