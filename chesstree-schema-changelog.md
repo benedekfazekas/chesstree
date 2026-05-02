@@ -8,6 +8,28 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ---
 
+## [1.1.0] — 2026-05-02
+
+Variation-wrapper comments standardised on a `comments` list.
+
+### Changed
+
+- `comment` (string) on variation wrappers is replaced by `comments` (array of
+  strings), consistent with the field of the same name on move entries. Multiple
+  comment blocks before the first move of a variation are now preserved as
+  separate list elements instead of being joined into a single string.
+
+### Backward compatibility
+
+The `json_parser` module accepts both the old `comment` string and the new
+`comments` list when reading variation wrappers, so files produced under `1.0.0`
+continue to round-trip correctly. The `comment` form is treated as legacy and
+may be removed in a future major release. Strictly speaking this should be have
+been a major bump but as chesstree is not published yet and the variation.comment
+field was not properly documented in the spec I kept it as a minor bump.
+
+---
+
 ## [1.0.0] — 2026-05-01
 
 Schema declared **stable**. The backward compatibility contract defined in
