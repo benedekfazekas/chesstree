@@ -1,19 +1,44 @@
 [build-system]
-requires = ["setuptools>=61.0"]
+requires = ["setuptools>=68.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "chesstree"
 version = "2026.1.dev0"
-description = "A command-line tool to convert PGN chess files to JSON or EDN"
-authors = [{ name="Your Name", email="you@example.com" }]
+description = "Visualise PGN chess games as interactive trees; convert PGN to JSON, EDN, GraphViz DOT and HTML"
+authors = [{ name = "Benedek Fazekas" }]
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+requires-python = ">=3.9"
+keywords = [
+    "chess", "pgn", "visualization", "game-tree",
+    "graphviz", "dot", "d3", "json", "converter",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Intended Audience :: End Users/Desktop",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Games/Entertainment :: Board Games",
+]
 dependencies = [
     "chess >= 1.11.2",
     "typing_extensions >= 4.0; python_version < '3.12'",
 ]
-readme = "README.md"
-license = { file="LICENSE" }
-requires-python = ">=3.9"
+
+[project.urls]
+Homepage = "https://github.com/benedekfazekas/chesstree"
+Repository = "https://github.com/benedekfazekas/chesstree"
+Issues = "https://github.com/benedekfazekas/chesstree/issues"
+Changelog = "https://github.com/benedekfazekas/chesstree/blob/main/CHANGELOG.md"
 
 [project.optional-dependencies]
 dev = [
