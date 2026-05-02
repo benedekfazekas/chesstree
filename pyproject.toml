@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "chesstree"
-version = "0.1.0"
+version = "2026.1.dev0"
 description = "A command-line tool to convert PGN chess files to JSON or EDN"
 authors = [{ name="Your Name", email="you@example.com" }]
 dependencies = [

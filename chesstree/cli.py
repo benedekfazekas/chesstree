@@ -21,13 +21,15 @@ from chesstree.json_parser import parse_json
 from chesstree.dot_exporter import export_dot
 from chesstree.dothtml_exporter import export_dothtml
 from chesstree.d3html_exporter import export_d3html
+from chesstree.utils import CURRENT_SCHEMA_VERSION
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
+        prog="chesstree",
         description="Convert chess games between PGN, JSON, and EDN formats.",
     )
-    parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
+    parser.add_argument("--version", action="version", version=f"%(prog)s {__version__} (schema {CURRENT_SCHEMA_VERSION})")
     parser.add_argument(
         "-i", "--input",
         type=argparse.FileType("r"),

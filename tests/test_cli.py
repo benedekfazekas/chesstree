@@ -9,8 +9,10 @@ import tempfile
 import chess.pgn
 import pytest
 
-from chesstree.cli import pgn_to_json, json_to_pgn, _detect_input_format, game_to_d3html
+import chesstree.cli
+from chesstree.cli import pgn_to_json, json_to_pgn, _detect_input_format, game_to_d3html, parse_args
 from chesstree.json_exporter import JsonExporter
+from chesstree.utils import CURRENT_SCHEMA_VERSION
 
 SIMPLE_PGN = """\
 [Event "Test Game"]
@@ -256,3 +258,34 @@ class TestGameToD3html:
         with pytest.raises(SystemExit) as exc_info:
             game_to_d3html(_make_input("", "game.pgn"), output_f, "pgn")
         assert exc_info.value.code == 1
+
+
+class TestVersionOutput:
+    def test_version_exits_zero(self, monkeypatch, capsys):
+        monkeypatch.setattr(sys, "argv", ["chesstree", "--version"])
+        with pytest.raises(SystemExit) as exc_info:
+            parse_args()
+        assert exc_info.value.code == 0
+
+    def test_version_contains_program_name(self, monkeypatch, capsys):
+        monkeypatch.setattr(sys, "argv", ["chesstree", "--version"])
+        with pytest.raises(SystemExit):
+            parse_args()
+        captured = capsys.readouterr()
+        assert "chesstree" in captured.out
+        assert captured.err == ""
+
+    def test_version_contains_schema_version(self, monkeypatch, capsys):
+        monkeypatch.setattr(sys, "argv", ["chesstree", "--version"])
+        with pytest.raises(SystemExit):
+            parse_args()
+        captured = capsys.readouterr()
+        assert f"schema {CURRENT_SCHEMA_VERSION}" in captured.out
+
+    def test_version_format(self, monkeypatch, capsys):
+        monkeypatch.setattr(chesstree.cli, "__version__", "2026.1.dev0")
+        monkeypatch.setattr(sys, "argv", ["chesstree", "--version"])
+        with pytest.raises(SystemExit):
+            parse_args()
+        captured = capsys.readouterr()
+        assert captured.out.strip() == f"chesstree 2026.1.dev0 (schema {CURRENT_SCHEMA_VERSION})"

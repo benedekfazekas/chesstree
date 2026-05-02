@@ -538,6 +538,11 @@ Every chesstree JSON/EDN document contains a `schema_version` field as the
 first key of the top-level object. The value is a [SemVer 2.0.0](https://semver.org/)
 string (e.g. `"0.1.0"`, `"1.2.0"`).
 
+The schema version is **independent of the tool version**. The tool uses
+[CalVer](https://calver.org/) (`YYYY.N`, e.g. `2026.1`) and is bumped on every
+release. The schema version is bumped only when the JSON/EDN output format
+changes. A tool release that fixes a bug or adds a new output format does not
+change the schema version.
 ### Current version
 
 The current schema version is **`1.2.0`**.

@@ -34,6 +34,8 @@ from chess.pgn import (
     NAG_NOVELTY,
 )
 
+CURRENT_SCHEMA_VERSION = "1.2.0"
+
 # Matches any PGN command annotation embedded in a comment, e.g. [%clk 0:05:00],
 # [%emt 0:00:03], [%eval 0.5], [%csl Gd4], [%cal Ge2e4].
 _PGN_COMMAND_ANNOTATION_RE = re.compile(r"\[%[^\]]+\]")

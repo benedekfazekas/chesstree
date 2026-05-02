@@ -37,15 +37,12 @@ from chess.pgn import (
 )
 from typing import Optional, List, Union, FrozenSet
 
-from chesstree.utils import has_real_comment, _PGN_COMMAND_ANNOTATION_RE, NAG_TO_PGN_STRING
+from chesstree.utils import has_real_comment, _PGN_COMMAND_ANNOTATION_RE, NAG_TO_PGN_STRING, CURRENT_SCHEMA_VERSION
 
 try:
     from typing import override
 except ImportError:
     from typing_extensions import override
-
-
-_CURRENT_SCHEMA_VERSION = "1.2.0"
 
 
 def _standardize_comments(comment: Union[str, List[str]]) -> List[str]:
@@ -150,7 +147,7 @@ class JsonExporter(BaseVisitor[str]):
 
     def reset_game(self) -> None:
         self.game_data: dict = {
-            "schema_version": _CURRENT_SCHEMA_VERSION,
+            "schema_version": CURRENT_SCHEMA_VERSION,
             "headers": {},
             "moves": [],
             "result": None,

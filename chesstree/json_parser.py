@@ -10,7 +10,8 @@ import chess.engine
 import chess.pgn
 import chess.svg
 
-_CURRENT_SCHEMA_VERSION = "1.2.0"
+from chesstree.utils import CURRENT_SCHEMA_VERSION
+
 _SEMVER_RE = re.compile(r"^(\d+)\.(\d+)\.(\d+)$")
 
 
@@ -55,13 +56,13 @@ def _warn_on_schema_version(json_data: dict) -> None:
     schema_version = json_data.get("schema_version")
     if schema_version is None:
         warnings.warn(
-            f"Input JSON is missing schema_version; assuming schema {_CURRENT_SCHEMA_VERSION}.",
+            f"Input JSON is missing schema_version; assuming schema {CURRENT_SCHEMA_VERSION}.",
             stacklevel=2,
         )
         return
 
     parsed_version = _parse_semver(schema_version)
-    current_version = _parse_semver(_CURRENT_SCHEMA_VERSION)
+    current_version = _parse_semver(CURRENT_SCHEMA_VERSION)
     if (
         parsed_version is not None
         and current_version is not None
@@ -70,7 +71,7 @@ def _warn_on_schema_version(json_data: dict) -> None:
         warnings.warn(
             "Input JSON schema_version "
             f"{schema_version} is newer than the supported schema "
-            f"{_CURRENT_SCHEMA_VERSION}; parsing may be incomplete.",
+            f"{CURRENT_SCHEMA_VERSION}; parsing may be incomplete.",
             stacklevel=2,
         )
 

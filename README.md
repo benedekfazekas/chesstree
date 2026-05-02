@@ -361,6 +361,25 @@ chesstree -i game.json -f pgn -o game_restored.pgn
 
 ---
 
+## Versioning
+
+chesstree uses two independent version numbers:
+
+| Version | Scheme | Where | Bumped when |
+|---------|--------|-------|-------------|
+| **Tool version** | CalVer `YYYY.N` | `pyproject.toml`, `--version` output | Any release |
+| **Schema version** | SemVer | `schema_version` field in JSON/EDN output | Schema changes only |
+
+Running `chesstree --version` shows both:
+
+```
+chesstree 2026.1 (schema 1.2.0)
+```
+
+The two versions are independent: a tool release that fixes a bug or adds a new output format does not change the schema version. See [docs/schema.md](docs/schema.md) for the full schema compatibility contract.
+
+---
+
 ## Credits
 
 `chesstree` is built heavily on top of [python-chess](https://python-chess.readthedocs.io/en/latest/)
