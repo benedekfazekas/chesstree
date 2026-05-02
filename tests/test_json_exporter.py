@@ -67,7 +67,7 @@ class TestJsonExporter:
         game = _parse_game(SIMPLE_PGN)
         exporter = JsonExporter()
         data = json.loads(game.accept(exporter))
-        assert data["schema_version"] == "1.0.0"
+        assert data["schema_version"] == "1.1.0"
 
     def test_schema_version_is_first_key(self):
         game = _parse_game(SIMPLE_PGN)
@@ -79,7 +79,7 @@ class TestJsonExporter:
         game = _parse_game(SIMPLE_PGN)
         exporter = JsonExporter(edn=True)
         result = game.accept(exporter)
-        assert result.startswith('{:schema-version "1.0.0"')
+        assert result.startswith('{:schema-version "1.1.0"')
 
     def test_headers_included(self):
         game = _parse_game(SIMPLE_PGN)
@@ -172,7 +172,8 @@ class TestJsonExporter:
         game = _parse_game(VARIATION_STARTING_COMMENT_PGN)
         data = json.loads(game.accept(JsonExporter(variations=True, comments=True)))
         wrapper = next(m for m in data["moves"] if "variation" in m)
-        assert wrapper.get("comment") == "The Sicilian is also possible."
+        assert wrapper.get("comments") == ["The Sicilian is also possible."]
+        assert "comment" not in wrapper
 
     def test_variation_starting_comment_not_in_game_headers(self):
         game = _parse_game(VARIATION_STARTING_COMMENT_PGN)
@@ -183,14 +184,14 @@ class TestJsonExporter:
         game = _parse_game(VARIATION_STARTING_COMMENT_PGN)
         data = json.loads(game.accept(JsonExporter(variations=True, comments=False)))
         wrapper = next(m for m in data["moves"] if "variation" in m)
-        assert "comment" not in wrapper
+        assert "comments" not in wrapper
 
     def test_game_comment_preserved_alongside_variation_starting_comment(self):
         game = _parse_game(GAME_AND_VARIATION_COMMENT_PGN)
         data = json.loads(game.accept(JsonExporter(variations=True, comments=True)))
         assert data["headers"]["Comment"] == "Game intro."
         wrapper = next(m for m in data["moves"] if "variation" in m)
-        assert wrapper.get("comment") == "Sicilian note."
+        assert wrapper.get("comments") == ["Sicilian note."]
 
 
         game1 = _parse_game(SIMPLE_PGN)

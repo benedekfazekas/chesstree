@@ -1,6 +1,6 @@
 # chesstree JSON/EDN Schema Specification
 
-**Schema version:** `1.0.0`
+**Schema version:** `1.1.0`
 
 This document is the normative specification for the JSON and EDN output produced
 by `chesstree`. It defines every field, its type, whether it is required or
@@ -36,7 +36,7 @@ The top-level value is a JSON object (EDN map) with four required fields:
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `schema_version` | string | **yes** | SemVer version of this schema (currently `"1.0.0"`). |
+| `schema_version` | string | **yes** | SemVer version of this schema (currently `"1.1.0"`). |
 | `headers` | object | **yes** | PGN header tag pairs. May be empty (`{}`) if headers were suppressed. |
 | `moves` | array | **yes** | Ordered list of [move entries](#3-move-entry) and [variation wrappers](#4-variation-wrapper). |
 | `result` | string \| null | **yes** | Game termination marker: `"1-0"`, `"0-1"`, `"1/2-1/2"`, `"*"`, or `null`. |
@@ -145,6 +145,7 @@ branching from the position before the preceding move entry.
 |-------|------|----------|-------------|
 | `variation` | array | **yes** | A list of move entries and nested variation wrappers. |
 | `branch_fen` | string | **yes** | FEN of the board position from which this variation's moves are played. |
+| `comments` | array of strings | no | Comments that appear before the first move of this variation. See [§6](#6-comments). |
 
 ### Placement rules
 
@@ -244,7 +245,8 @@ automatically.
 
 ## 6. Comments
 
-Move-level comments are stored as a list of strings under the `comments` key.
+Human readable comments are stored as a list of strings under the `comments` key on both
+move entries and variation wrappers.
 
 ### Shape
 
@@ -252,14 +254,19 @@ Move-level comments are stored as a list of strings under the `comments` key.
 "comments": ["First comment.", "Second comment."]
 ```
 
-Each string is one comment block from the PGN source.
+Each string is one normalized comment string in source order.
 
 ### Omission rule
 
-When a move has no human-readable comments, the `comments` key is **absent**
-from the move entry. It is never present as an empty list `[]`.
+When a move entry or variation wrapper has no comments of the relevant kind, the
+`comments` key is **absent**. It is never present as an empty list `[]`.
 
-### Normalization rules
+### Normalization rules by context
+
+#### Move-entry comments
+
+For move entries, each string corresponds to one comment block from the PGN
+source after normalization:
 
 1. **PGN command annotations are stripped.** Any `[%...]` token (e.g.
    `[%clk 0:05:00]`, `[%eval 0.5]`, `[%csl Gd4]`) is removed from the
@@ -274,11 +281,23 @@ from the move entry. It is never present as an empty list `[]`.
    is not discarded — it is placed into dedicated fields on the move entry
    (`clock`, `emt`, `eval`, `arrows`). See [§7](#7-command-annotations).
 
+#### Variation-wrapper comments
+
+On a variation wrapper, `comments` contains the comments that occur before the
+first move of that variation (the PGN position modeled by python-chess as
+`starting_comment`).
+
+- Each string is kept in source order.
+- Leading and trailing whitespace is trimmed.
+- No command-annotation side-channel fields are emitted on variation wrappers.
+- With current `python-chess`, adjacent variation-start comment blocks may
+  already be merged into a single string before `chesstree` receives them.
+
 ### Multiple comments
 
-A single PGN move may carry multiple comment blocks (e.g. a comment before and
-after a variation). All are collected into the same `comments` list in order of
-appearance.
+A single move or variation start may carry multiple comment blocks. When they
+are exposed separately by the parser, they are collected into the same
+`comments` list in order of appearance.
 
 ---
 
@@ -373,7 +392,8 @@ preserved, what is transformed, and what is discarded.
 | Move order | Array ordering in `moves` and nested `variation` arrays. |
 | Variations and nesting | Inline variation wrappers with `branch_fen`. |
 | NAGs | `nags` dict with code → symbol mapping. |
-| Human comments | `comments` list (after stripping command annotations). |
+| Move comments | Move-entry `comments` list (after stripping command annotations). |
+| Variation-start comments | Variation-wrapper `comments` list. |
 | Game result | `result` field and `headers["Result"]`. |
 | Game-level comment | `headers["Comment"]`. |
 | Clock annotations (`[%clk]`) | `clock` field (float seconds). |
@@ -385,17 +405,17 @@ preserved, what is transformed, and what is discarded.
 
 | PGN element | Transformation |
 |-------------|----------------|
-| Command annotations in comments | Extracted into structured fields (`clock`, `emt`, `eval`, `arrows`) and stripped from `comments`. |
+| Command annotations in move comments | Extracted into structured fields (`clock`, `emt`, `eval`, `arrows`) and stripped from move-entry `comments`. |
 | FEN | Computed from the game tree and stored on each move entry, even if the PGN did not contain a FEN tag. |
 | UCI notation | Computed from the move and board state; not present in PGN. |
-| Comment boundaries | Multiple PGN comment blocks on a single move are collected into a single `comments` list. |
+| Comment grouping | Multiple PGN comment blocks associated with the same move or variation start are collected into a single `comments` list. |
 
 ### Discarded
 
 | PGN element | Reason |
 |-------------|--------|
 | Unrecognised `[%...]` command annotations | Stripped from comments. No structured field is created for unknown commands. The raw text is lost. |
-| Exact comment–move attachment order | PGN distinguishes pre-move and post-move comments; chesstree collects all comments on the nearest preceding move. |
+| Exact original segmentation of adjacent variation-start comment blocks | Current `python-chess` may merge adjacent comments before `chesstree` receives them, so a wrapper `comments` list can contain fewer elements than the source brace blocks. |
 
 ### Round-trip fidelity
 
@@ -403,7 +423,7 @@ A PGN → JSON → PGN round-trip through `chesstree` preserves: headers, all
 moves (mainline and variations), NAGs, human comment text, clock/eval/arrow
 annotations. The PGN output from a round-trip is
 semantically equivalent to the original, though formatting (whitespace, line
-breaks, comment placement) may differ.
+breaks, and exact variation-start comment segmentation may differ.
 
 ---
 
@@ -492,15 +512,15 @@ semantics. The `schema_version` value is the same string in both formats.
 
 Every chesstree JSON/EDN document contains a `schema_version` field as the
 first key of the top-level object. The value is a [SemVer 2.0.0](https://semver.org/)
-string (e.g. `"0.1.0"`, `"1.0.0"`).
+string (e.g. `"0.1.0"`, `"1.1.0"`).
 
 ### Current version
 
-The current schema version is **`1.0.0`**.
+The current schema version is **`1.1.0`**.
 
 ### Stability
 
-The schema is **stable** as of `1.0.0`. The backward compatibility contract
+The schema is **stable** as of `1.1.0`. The backward compatibility contract
 below is now in effect.
 
 ### Version numbering rules
@@ -541,7 +561,7 @@ Optional fields are shown where they occur naturally.
 
 ```json
 {
-  "schema_version": "1.0.0",
+  "schema_version": "1.1.0",
   "headers": {
     "Event": "Dortmund Sparkassen",
     "Site": "Dortmund GER",
@@ -610,7 +630,8 @@ Optional fields are shown where they occur naturally.
           "comments": ["The main alternative."]
         }
       ],
-      "branch_fen": "rnbqkb1r/p1pppppp/1p3n2/8/2P5/5N2/PP1PPPPP/RNBQKB1R w KQkq - 0 3"
+      "branch_fen": "rnbqkb1r/p1pppppp/1p3n2/8/2P5/5N2/PP1PPPPP/RNBQKB1R w KQkq - 0 3",
+      "comments": ["A quieter alternative for White."]
     }
   ],
   "result": "1-0"
@@ -624,7 +645,7 @@ Optional fields are shown where they occur naturally.
 ### EDN equivalent (excerpt)
 
 ```edn
-{:schema-version "1.0.0"
+{:schema-version "1.1.0"
  :headers {:Event "Dortmund Sparkassen"
            :White "Vladimir Kramnik"
            :Black "Anatoly Karpov"

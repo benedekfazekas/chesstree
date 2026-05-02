@@ -10,7 +10,7 @@ import chess.engine
 import chess.pgn
 import chess.svg
 
-_CURRENT_SCHEMA_VERSION = "1.0.0"
+_CURRENT_SCHEMA_VERSION = "1.1.0"
 _SEMVER_RE = re.compile(r"^(\d+)\.(\d+)\.(\d+)$")
 
 
@@ -23,6 +23,32 @@ def _parse_semver(version: object) -> Optional[Tuple[int, int, int]]:
         return None
 
     return tuple(int(part) for part in match.groups())
+
+
+def _coerce_comments(value: object) -> List[str]:
+    if isinstance(value, str):
+        stripped = value.strip()
+        return [stripped] if stripped else []
+    if isinstance(value, list):
+        comments = []
+        for item in value:
+            if isinstance(item, str):
+                stripped = item.strip()
+                if stripped:
+                    comments.append(stripped)
+        return comments
+    return []
+
+
+def _variation_comments(entry: dict) -> List[str]:
+    comments = _coerce_comments(entry.get("comments"))
+    if comments:
+        return comments
+    # backward compatibility for 1.0.0
+    # 1.1.0 should be a major version jump strictly speaking but as chesstree is not
+    # published yet and variation.comment was not documented in the spec just a minor
+    # bump
+    return _coerce_comments(entry.get("comment"))
 
 
 def _warn_on_schema_version(json_data: dict) -> None:
@@ -52,14 +78,14 @@ def _warn_on_schema_version(json_data: dict) -> None:
 def _process_moves(
     game_node: chess.pgn.GameNode,
     moves: List[dict],
-    _starting_comment: Optional[str] = None,
+    _starting_comments: Optional[List[str]] = None,
 ) -> None:
     """
     Recursively build a chess.pgn game tree from a JSON moves list.
 
     Each entry is either:
       - A move dict: {"san": ..., "comments": [...], "nags": [...], ...}
-      - A variation dict: {"variation": [<moves list>], "comment": <str>}
+      - A variation dict: {"variation": [<moves list>], "comments": [...]}
 
     A variation entry represents an alternative to the preceding move in the
     current list, branching from the parent of the node built for that move.
@@ -67,7 +93,7 @@ def _process_moves(
     emitted after the main-line move they shadow, at whatever nesting depth
     they occur in the game tree.
 
-    ``_starting_comment`` carries a variation wrapper's ``comment`` value so
+    ``_starting_comments`` carries a variation wrapper's ``comments`` list so
     that it can be set as ``starting_comment`` on the first move node built
     inside that variation (mirroring PGN's pre-move annotation semantics).
     """
@@ -82,18 +108,18 @@ def _process_moves(
                 _process_moves(
                     current_node.parent,
                     entry["variation"],
-                    _starting_comment=entry.get("comment"),
+                    _starting_comments=_variation_comments(entry),
                 )
         else:
             board = current_node.board()
             move = board.parse_san(entry["san"])
             child_node = current_node.add_variation(move)
 
-            if first_move and _starting_comment:
-                child_node.starting_comment = _starting_comment
+            if first_move and _starting_comments:
+                child_node.starting_comment = " ".join(_starting_comments)
             first_move = False
 
-            comments = entry.get("comments", [])
+            comments = _coerce_comments(entry.get("comments"))
             if comments:
                 # chess.pgn stores a single comment string; join multiple entries
                 child_node.comment = " ".join(comments)

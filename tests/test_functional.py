@@ -295,7 +295,7 @@ class TestRoundTrip:
         data = json.loads(json_str)
         # The variation wrapper must carry the comment, not headers["Comment"]
         wrapper = next(m for m in data["moves"] if "variation" in m)
-        assert wrapper.get("comment") == "The Sicilian is also popular."
+        assert wrapper.get("comments") == ["The Sicilian is also popular."]
         assert "Comment" not in data["headers"]
         # After parsing back, starting_comment lands on the first move of the variation
         game2 = parse_json(data)
@@ -303,6 +303,41 @@ class TestRoundTrip:
         c5_var = e4_node.variations[1]
         assert c5_var.starting_comment == "The Sicilian is also popular."
         assert str(game1) == str(game2)
+
+    def test_parse_json_accepts_variation_comments_list(self):
+        pgn_text = (
+            "[White \"A\"]\n[Black \"B\"]\n[Result \"*\"]\n\n"
+            "1. e4 e5 ({ The Sicilian is also popular. } 1... c5 2. Nf3) 2. Nf3 *"
+        )
+        game = chess.pgn.read_game(io.StringIO(pgn_text))
+        assert game is not None
+        data = json.loads(game.accept(JsonExporter(headers=True, comments=True, variations=True)))
+        wrapper = next(m for m in data["moves"] if "variation" in m)
+        wrapper["comments"] = ["First block.", "Second block."]
+
+        game2 = parse_json(data)
+        e4_node = game2.variations[0]
+        c5_var = e4_node.variations[1]
+
+        assert c5_var.starting_comment == "First block. Second block."
+
+    def test_parse_json_accepts_legacy_variation_comment_field(self):
+        pgn_text = (
+            "[White \"A\"]\n[Black \"B\"]\n[Result \"*\"]\n\n"
+            "1. e4 e5 ({ The Sicilian is also popular. } 1... c5 2. Nf3) 2. Nf3 *"
+        )
+        game = chess.pgn.read_game(io.StringIO(pgn_text))
+        assert game is not None
+        data = json.loads(game.accept(JsonExporter(headers=True, comments=True, variations=True)))
+        wrapper = next(m for m in data["moves"] if "variation" in m)
+        del wrapper["comments"]
+        wrapper["comment"] = "Legacy wrapper comment."
+
+        game2 = parse_json(data)
+        e4_node = game2.variations[0]
+        c5_var = e4_node.variations[1]
+
+        assert c5_var.starting_comment == "Legacy wrapper comment."
 
     def test_parse_json_does_not_warn_for_current_schema_version(self):
         game = _load_game(LISPERER)
@@ -328,18 +363,18 @@ class TestRoundTrip:
     def test_parse_json_warns_when_schema_version_is_newer(self):
         game = _load_game(LISPERER)
         data = json.loads(game.accept(JsonExporter(headers=True, comments=True, variations=True)))
-        data["schema_version"] = "1.1.0"
+        data["schema_version"] = "1.2.0"
 
         with pytest.warns(
             UserWarning,
-            match=r"schema_version 1\.1\.0 is newer than the supported schema 1\.0\.0",
+            match=r"schema_version 1\.2\.0 is newer than the supported schema 1\.1\.0",
         ):
             parse_json(data)
 
     def test_parse_json_does_not_warn_for_newer_patch_version(self):
         game = _load_game(LISPERER)
         data = json.loads(game.accept(JsonExporter(headers=True, comments=True, variations=True)))
-        data["schema_version"] = "1.0.1"
+        data["schema_version"] = "1.1.1"
 
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")

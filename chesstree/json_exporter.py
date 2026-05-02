@@ -45,6 +45,9 @@ except ImportError:
     from typing_extensions import override
 
 
+_CURRENT_SCHEMA_VERSION = "1.1.0"
+
+
 def _standardize_comments(comment: Union[str, List[str]]) -> List[str]:
     if isinstance(comment, str):
         return [comment]
@@ -147,7 +150,7 @@ class JsonExporter(BaseVisitor[str]):
 
     def reset_game(self) -> None:
         self.game_data: dict = {
-            "schema_version": "1.0.0",
+            "schema_version": _CURRENT_SCHEMA_VERSION,
             "headers": {},
             "moves": [],
             "result": None,
@@ -199,13 +202,14 @@ class JsonExporter(BaseVisitor[str]):
                 # Starting comment of a variation (PGN `starting_comment`).
                 # The variation wrapper that owns `current_variation` is the
                 # last entry in the parent list; attach the comment to it.
-                texts = _standardize_comments(comment)
-                text = " ".join(t for t in texts if t)
-                if text:
+                comments = [text.strip() for text in _standardize_comments(comment) if text.strip()]
+                if comments:
                     parent = self.variation_stack[-1]
                     for entry in reversed(parent):
                         if entry.get("variation") is self.current_variation:
-                            entry["comment"] = text
+                            if "comments" not in entry:
+                                entry["comments"] = []
+                            entry["comments"].extend(comments)
                             break
                 return
             # Comment before the first move at root level — game-level comment.

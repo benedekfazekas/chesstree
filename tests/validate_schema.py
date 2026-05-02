@@ -61,8 +61,8 @@ class SchemaValidator:
             f"{path}: schema_version should be str",
         )
         self.check(
-            data.get("schema_version") == "1.0.0",
-            f"{path}: schema_version should be '1.0.0'",
+            data.get("schema_version") == "1.1.0",
+            f"{path}: schema_version should be '1.1.0'",
         )
 
         r = data.get("result")
@@ -265,6 +265,24 @@ class SchemaValidator:
             len(entry.get("variation", [])) > 0,
             f"{path}: variation should not be empty",
         )
+        if "comments" in entry:
+            self.check(
+                isinstance(entry["comments"], list),
+                f"{path}: comments should be list",
+            )
+            self.check(
+                len(entry["comments"]) > 0,
+                f"{path}: comments should not be empty list (should be absent)",
+            )
+            for ci, c in enumerate(entry.get("comments", [])):
+                self.check(
+                    isinstance(c, str),
+                    f"{path}.comments[{ci}]: should be str, got {type(c).__name__}",
+                )
+                self.check(
+                    len(c.strip()) > 0,
+                    f"{path}.comments[{ci}]: should not be empty string",
+                )
 
         if prev_move and "branch_fen" in entry and "fen_before" in prev_move:
             self.check(
