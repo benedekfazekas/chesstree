@@ -13,9 +13,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ---
 
-## [Unreleased] — 2026.1.dev0
+## [2026.1] — 2026-05-04
 
-First development milestone. Not yet published to PyPI.
+First public release on PyPI.
 
 ### Added
 

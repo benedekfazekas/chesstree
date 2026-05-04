@@ -65,6 +65,18 @@ implementing. Save the plan to the session state `plan.md`. Break the plan into 
 - if working on a github issue always put a reference of the issue in the commit message
 - never push directly on the `main` branch
 
+### Releasing a new version (CalVer `YYYY.N`)
+
+When cutting a release, update these four locations — all in one commit before tagging:
+
+1. **`pyproject.toml` line 7** — `version = "YYYY.N.dev0"` → `"YYYY.N"`
+2. **`CHANGELOG.md`** — promote `## [Unreleased] — YYYY.N.dev0` to `## [YYYY.N] — YYYY-MM-DD`
+3. **`tests/test_cli.py`** — two lines in `test_version_format`: the `monkeypatch.setattr` value and the `assert` expected string, both `"YYYY.N.dev0"` → `"YYYY.N"`
+
+After committing, tag and push: `git tag vYYYY.N && git push origin vYYYY.N`.
+
+After the release, bump `pyproject.toml` to `YYYY.(N+1).dev0` (or `YYYY+1.1.dev0` for a new year) and update the three test locations to match the new dev version.
+
 ---
 
 ## Code style

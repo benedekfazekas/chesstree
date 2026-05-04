@@ -283,9 +283,9 @@ class TestVersionOutput:
         assert f"schema {CURRENT_SCHEMA_VERSION}" in captured.out
 
     def test_version_format(self, monkeypatch, capsys):
-        monkeypatch.setattr(chesstree.cli, "__version__", "2026.1.dev0")
+        monkeypatch.setattr(chesstree.cli, "__version__", "2026.1")
         monkeypatch.setattr(sys, "argv", ["chesstree", "--version"])
         with pytest.raises(SystemExit):
             parse_args()
         captured = capsys.readouterr()
-        assert captured.out.strip() == f"chesstree 2026.1.dev0 (schema {CURRENT_SCHEMA_VERSION})"
+        assert captured.out.strip() == f"chesstree 2026.1 (schema {CURRENT_SCHEMA_VERSION})"
