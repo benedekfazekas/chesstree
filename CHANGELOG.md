@@ -25,9 +25,10 @@ First public release on PyPI.
 - **JSON parser**: round-trips chesstree JSON back to a `chess.pgn.Game` object
 - **DOT exporter**: move tree as a GraphViz `digraph`; moves grouped into blocks,
   NAG symbols coloured per severity, comments on edge labels
-- **dothtml exporter**: self-contained interactive HTML viewer powered by d3-graphviz;
-  includes tree view and animated deck view with pinch-to-zoom
+- **dothtml exporter**: self-contained interactive HTML viewer powered by d3-graphviz:
+  the game tree is rendered as a left-to-right digraph
 - **d3html exporter**: self-contained interactive HTML viewer built on d3 hierarchy —
+  includes tree view and animated deck view with pinch-to-zoom
   a separate layout engine from dothtml that renders the game tree as a collapsible
   D3 tree; supports per-move hover board images (`--hover-for-all-moves`)
 - **Board image modes**: `none`, `all`, `variations` (default), `commented` —
