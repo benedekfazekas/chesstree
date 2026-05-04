@@ -13,6 +13,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ---
 
+## [Unreleased] — 2026.2.dev0
+
 ## [2026.1] — 2026-05-04
 
 First public release on PyPI.

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "chesstree"
-version = "2026.1"
+version = "2026.2.dev0"
 description = "Visualise PGN chess games as interactive trees; convert PGN to JSON, EDN, GraphViz DOT and HTML"
 authors = [{ name = "Benedek Fazekas" }]
 readme = "README.md"
