@@ -4,7 +4,7 @@
 
 A command-line tool for converting chess games between PGN, JSON, EDN, GraphViz DOT, and interactive HTML formats. It accepts PGN or chesstree JSON as input (auto-detected from the file extension) and can output JSON, EDN, PGN, DOT, dothtml, or d3html via the `-f`/`--format` flag. JSON output includes move number, SAN and UCI notation, FEN positions, comments, NAGs, and variations. DOT output models the game tree as a left-to-right digraph suitable for rendering with GraphViz tools. The `dothtml` format wraps the DOT graph in a self-contained browser viewer powered by [d3-graphviz](https://github.com/magjac/d3-graphviz), with pan, zoom, and board images included. The `d3html` format produces a purpose-built interactive D3.js tree viewer with collapsible nodes, variation highlighting, optional hover board images, and a dark-themed layout — no GraphViz dependency required.
 
-As a taster how the `d3html` format looks and works see [here](https://github.com/benedekfazekas/chesstree/blob/ffc31fdf2147e10cd5a259b34f37c9f17d186b6b/chesstree-interactive-caro-kann-exc.gif).
+As a taster how the `d3html` format looks and works see [here](https://raw.githubusercontent.com/benedekfazekas/chesstree/main/chesstree-interactive-caro-kann-exc.gif).
 
 ▶ See [d3html output — interactive D3.js tree viewer](#d3html-output--interactive-d3js-tree-viewer) for full details.
 
@@ -12,44 +12,41 @@ As a taster how the `d3html` format looks and works see [here](https://github.co
 
 The tool produces a JSON (or EDN) object with four top-level keys: `schema_version`, `headers`, `moves`, and `result`. Each move entry carries SAN/UCI notation, FEN positions before and after, and optional annotations (comments, NAGs, clock, eval, arrows). Variations appear inline as `{ "variation": [ ... ], "branch_fen": "<FEN>" }` entries.
 
-For the full normative specification — required vs optional fields, exact types, variation placement rules, NAG encoding, comment normalization, fidelity guarantees, and versioning contract — see **[docs/schema.md](docs/schema.md)**.
+For the full normative specification — required vs optional fields, exact types, variation placement rules, NAG encoding, comment normalization, fidelity guarantees, and versioning contract — see **[docs/schema.md](https://github.com/benedekfazekas/chesstree/blob/main/docs/schema.md)**.
 
 ---
 
 ## Installation
 
-### Prerequisites
+Requires Python 3.9 or later.
 
-- Python 3.9 or later
-- `pip`
-
-### Install from source (local)
-
-Clone or download the repository, then install with pip:
+### From PyPI
 
 ```bash
-git clone <repo-url> chesstree
-cd chesstree
-pip install .
+pip install chesstree
 ```
 
-The `chesstree` command will be added to your PATH automatically.
-
-### Install into a virtual environment (recommended)
-
-Using a virtual environment avoids polluting your global Python installation:
+Or with [pipx](https://pipx.pypa.io/) for an isolated environment (recommended for CLI tools):
 
 ```bash
-git clone <repo-url> chesstree
+pipx install chesstree
+```
+
+The `chesstree` command is added to your PATH automatically.
+
+### From source (for development)
+
+```bash
+git clone https://github.com/benedekfazekas/chesstree
 cd chesstree
 
 python3 -m venv .venv
 source .venv/bin/activate        # on Windows: .venv\Scripts\activate
 
-pip install .
+pip install -e ".[dev]"
 ```
 
-The `chesstree` command is available whenever the virtual environment is active.
+See the [Development environment](#development-environment) section below for full setup details.
 
 ---
 
@@ -378,7 +375,7 @@ Running `chesstree --version` shows both:
 chesstree 2026.1 (schema 1.2.0)
 ```
 
-The two versions are independent: a tool release that fixes a bug or adds a new output format does not change the schema version. See [docs/schema.md](docs/schema.md) for the full schema compatibility contract.
+The two versions are independent: a tool release that fixes a bug or adds a new output format does not change the schema version. See [docs/schema.md](https://github.com/benedekfazekas/chesstree/blob/main/docs/schema.md) for the full schema compatibility contract.
 
 ---
 
@@ -395,7 +392,7 @@ handling, and SVG board rendering — the core of what makes `chesstree` work.
 ### Setup
 
 ```bash
-git clone <repo-url> chesstree
+git clone https://github.com/benedekfazekas/chesstree
 cd chesstree
 
 python3 -m venv .venv
