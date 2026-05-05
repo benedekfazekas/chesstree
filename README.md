@@ -95,9 +95,6 @@ Supported conversions:
 | PGN   | `dothtml`         | Self-contained d3-graphviz HTML viewer |
 | PGN   | `d3html`          | Self-contained D3.js interactive tree viewer |
 | JSON  | `pgn`             | PGN            |
-| JSON  | `dot`             | GraphViz DOT   |
-| JSON  | `dothtml`         | Self-contained d3-graphviz HTML viewer |
-| JSON  | `d3html`          | Self-contained D3.js interactive tree viewer |
 
 ### Examples
 
