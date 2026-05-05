@@ -75,6 +75,14 @@ When cutting a release, update these four locations — all in one commit before
 
 After committing, tag and push: `git tag vYYYY.N && git push origin vYYYY.N`.
 
+Then create a GitHub Release from the tag, using the version as the title and the relevant `CHANGELOG.md` section as the body:
+
+```bash
+gh release create vYYYY.N \
+  --title "YYYY.N" \
+  --notes "$(sed -n '/^## \[YYYY\.N\]/,/^## /p' CHANGELOG.md | sed '$d')"
+```
+
 After the release, bump `pyproject.toml` to `YYYY.(N+1).dev0` (or `YYYY+1.1.dev0` for a new year) and update the three test locations to match the new dev version.
 
 ---
