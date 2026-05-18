@@ -273,6 +273,7 @@ Features of the viewer:
   - **Collapsible nodes** — click any node to hide its variation children while keeping the main-line continuation visible. A badge in the header shows how many nodes are hidden. Ctrl+click collapses all children including the main-line continuation.
   - **Pan and zoom** via scroll and drag.
   - **Drag-to-reposition** individual nodes.
+  - **Orientation toggle** — switch between left-to-right (default) and top-to-bottom tree layout with the ↔ LR / ↕ TB buttons.
   - **Hover board images** (optional, see `-a` below).
   - **R key / ↺ Reset button** restores the automatic layout.
 - **Deck view** — a sequential card-by-card navigator (toggle with the 📇 Deck button):

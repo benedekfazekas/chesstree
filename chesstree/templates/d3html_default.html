@@ -455,6 +455,10 @@
       <button id="btn-view-tree" class="view-toggle active" title="Tree view">🌳 Tree</button>
       <button id="btn-view-deck" class="view-toggle" title="Deck view">📇 Deck</button>
     </div>
+    <div class="view-toggle-group" id="layout-toggle-group">
+      <button id="btn-layout-lr" class="view-toggle active" title="Left-to-right tree layout">↔ LR</button>
+      <button id="btn-layout-tb" class="view-toggle" title="Top-to-bottom tree layout">↕ TB</button>
+    </div>
     <button id="btn-theme" title="Toggle light/dark theme">☀ Light</button>
     <button id="btn-reset" title="Re-run layout (R)">↺ Reset</button>
   </header>
@@ -561,9 +565,12 @@
     // State
     // -----------------------------------------------------------------------
     let root;
-    let nodePositions = new Map();   // id → {x, y} manual overrides
+    const _nodePositions_lr = new Map(); // manual position overrides for LR layout
+    const _nodePositions_tb = new Map(); // manual position overrides for TB layout
+    function getNodePositions() { return currentLayout === 'lr' ? _nodePositions_lr : _nodePositions_tb; }
     let collapsedIds  = new Set();   // click: collapse all children
     let currentView   = 'tree';     // 'tree' or 'deck'
+    let currentLayout = 'lr';       // 'lr' (left-to-right) or 'tb' (top-to-bottom)
     let clickTimer    = null;       // single/double-click disambiguation
     let pendingFocus  = null;       // nodeKey to zoom to after measureAndInit
 
@@ -604,18 +611,33 @@
       return JSON.stringify(d);
     }
 
+    function getNodeDyTb() {
+      // Depth step for TB layout: accommodates the tallest node + gap for edge labels.
+      let maxH = NODE_HEIGHT_BASE;
+      measuredHeights.forEach(h => { if (h > maxH) maxH = h; });
+      return Math.max(200, maxH + 60);
+    }
+
     function runLayout(hierRoot) {
-      const layout = d3.tree()
-        .nodeSize([1, NODE_DX])
-        .separation((a, b) => {
-          const ha = measuredHeights.has(nodeKey(a.data))
-            ? measuredHeights.get(nodeKey(a.data))
-            : estimateNodeHeight(a);
-          const hb = measuredHeights.has(nodeKey(b.data))
-            ? measuredHeights.get(nodeKey(b.data))
-            : estimateNodeHeight(b);
-          return ha / 2 + NODE_DY_MIN + hb / 2;
-        });
+      let layout;
+      if (currentLayout === 'lr') {
+        layout = d3.tree()
+          .nodeSize([1, NODE_DX])
+          .separation((a, b) => {
+            const ha = measuredHeights.has(nodeKey(a.data))
+              ? measuredHeights.get(nodeKey(a.data))
+              : estimateNodeHeight(a);
+            const hb = measuredHeights.has(nodeKey(b.data))
+              ? measuredHeights.get(nodeKey(b.data))
+              : estimateNodeHeight(b);
+            return ha / 2 + NODE_DY_MIN + hb / 2;
+          });
+      } else {
+        // TB layout: depth flows downward (y), breadth is horizontal (x).
+        layout = d3.tree()
+          .nodeSize([1, getNodeDyTb()])
+          .separation(() => NODE_WIDTH + 20);
+      }
       layout(hierRoot);
     }
 
@@ -652,8 +674,8 @@
       // Apply manual overrides
       hierRoot.each(d => {
         const key = nodeKey(d.data);
-        if (nodePositions.has(key)) {
-          const pos = nodePositions.get(key);
+        if (getNodePositions().has(key)) {
+          const pos = getNodePositions().get(key);
           d.x = pos.x;
           d.y = pos.y;
         }
@@ -663,9 +685,9 @@
       const allLinks = hierRoot.links();
 
       // Render links
-      const linkPath = d3.linkHorizontal()
-        .x(d => d.y)
-        .y(d => d.x);
+      const linkPath = currentLayout === 'lr'
+        ? d3.linkHorizontal().x(d => d.y).y(d => d.x)
+        : d3.linkVertical().x(d => d.x).y(d => d.y);
 
       const linkSel = linksLayer.selectAll(".tree-link")
         .data(allLinks, d => nodeKey(d.target.data));
@@ -699,8 +721,12 @@
       edgeLabelMerge
         .transition().duration(200)
         .attr("transform", d => {
-          const mx = (d.source.y + d.target.y) / 2;
-          const my = (d.source.x + d.target.x) / 2 - 4;
+          const mx = currentLayout === 'lr'
+            ? (d.source.y + d.target.y) / 2
+            : (d.source.x + d.target.x) / 2;
+          const my = currentLayout === 'lr'
+            ? (d.source.x + d.target.x) / 2 - 4
+            : (d.source.y + d.target.y) / 2 - 4;
           return `translate(${mx},${my})`;
         });
       edgeLabelMerge.select("text")
@@ -735,7 +761,9 @@
       const nodeEnter = nodeSel.enter()
         .append("g")
         .attr("class", "tree-node")
-        .attr("transform", d => `translate(${d.y - NODE_WIDTH / 2},${d.x - estimateNodeHeight(d) / 2})`);
+        .attr("transform", d => currentLayout === 'lr'
+          ? `translate(${d.y - NODE_WIDTH / 2},${d.x - estimateNodeHeight(d) / 2})`
+          : `translate(${d.x - NODE_WIDTH / 2},${d.y - estimateNodeHeight(d) / 2})`);
 
       nodeEnter.each(function(d) {
         const g = d3.select(this);
@@ -782,7 +810,9 @@
       // Update existing nodes
       const nodeMerge = nodeEnter.merge(nodeSel);
       nodeMerge.transition().duration(200)
-        .attr("transform", d => `translate(${d.y - NODE_WIDTH / 2},${d.x - estimateNodeHeight(d) / 2})`);
+        .attr("transform", d => currentLayout === 'lr'
+          ? `translate(${d.y - NODE_WIDTH / 2},${d.x - estimateNodeHeight(d) / 2})`
+          : `translate(${d.x - NODE_WIDTH / 2},${d.y - estimateNodeHeight(d) / 2})`);
 
       // Refresh HTML content (collapse state may have changed)
       nodeMerge.each(function(d) {
@@ -897,8 +927,8 @@
           // Re-apply any existing manual overrides so origPositions are current
           hierRoot.each(n => {
             const k = nodeKey(n.data);
-            if (nodePositions.has(k)) {
-              const p = nodePositions.get(k);
+            if (getNodePositions().has(k)) {
+              const p = getNodePositions().get(k);
               n.x = p.x; n.y = p.y;
             }
           });
@@ -915,26 +945,40 @@
           if (!dragged) return;
           // Apply delta to all tracked nodes
           origPositions.forEach((orig, key) => {
-            nodePositions.set(key, { x: orig.x + dy, y: orig.y + dx });
+            // LR layout: depth is d.y (horizontal), breadth is d.x (vertical)
+            //   → mouse dx moves depth (y), mouse dy moves breadth (x)
+            // TB layout: depth is d.y (vertical), breadth is d.x (horizontal)
+            //   → mouse dx moves breadth (x), mouse dy moves depth (y)
+            const nx = currentLayout === 'lr' ? orig.x + dy : orig.x + dx;
+            const ny = currentLayout === 'lr' ? orig.y + dx : orig.y + dy;
+            getNodePositions().set(key, { x: nx, y: ny });
           });
           // Re-render all affected node elements live
           nodesLayer.selectAll(".tree-node")
             .each(function(n) {
               const k = nodeKey(n.data);
-              if (nodePositions.has(k)) {
-                const p = nodePositions.get(k);
+              if (getNodePositions().has(k)) {
+                const p = getNodePositions().get(k);
                 n.x = p.x; n.y = p.y;
                 d3.select(this)
-                  .attr("transform", `translate(${n.y - NODE_WIDTH / 2},${n.x - estimateNodeHeight(n) / 2})`);
+                  .attr("transform", currentLayout === 'lr'
+                    ? `translate(${n.y - NODE_WIDTH / 2},${n.x - estimateNodeHeight(n) / 2})`
+                    : `translate(${n.x - NODE_WIDTH / 2},${n.y - estimateNodeHeight(n) / 2})`);
               }
             });
           // Re-draw links and edge labels live
           linksLayer.selectAll(".tree-link")
-            .attr("d", d3.linkHorizontal().x(n => n.y).y(n => n.x));
+            .attr("d", currentLayout === 'lr'
+              ? d3.linkHorizontal().x(n => n.y).y(n => n.x)
+              : d3.linkVertical().x(n => n.x).y(n => n.y));
           edgeLabsLayer.selectAll(".edge-label-g")
             .attr("transform", l => {
-              const mx = (l.source.y + l.target.y) / 2;
-              const my = (l.source.x + l.target.x) / 2 - 4;
+              const mx = currentLayout === 'lr'
+                ? (l.source.y + l.target.y) / 2
+                : (l.source.x + l.target.x) / 2;
+              const my = currentLayout === 'lr'
+                ? (l.source.x + l.target.x) / 2 - 4
+                : (l.source.y + l.target.y) / 2 - 4;
               return `translate(${mx},${my})`;
             });
         })
@@ -942,7 +986,7 @@
           d3.select(this).select(".node-card").classed("dragging", false);
           if (!dragged) {
             // Undo all position overrides set during this drag
-            origPositions.forEach((_, key) => nodePositions.delete(key));
+            origPositions.forEach((_, key) => getNodePositions().delete(key));
           }
         });
     }
@@ -1059,7 +1103,7 @@
     document.addEventListener("keydown", function(e) {
       if (e.key === "r" || e.key === "R") {
         if (currentView === 'tree') {
-          nodePositions.clear();
+          getNodePositions().clear();
           collapsedIds.clear();
           measuredHeights.clear();
           measureAndInit();
@@ -1079,7 +1123,7 @@
 
     document.getElementById("btn-reset").addEventListener("click", function() {
       if (currentView === 'tree') {
-        nodePositions.clear();
+        getNodePositions().clear();
         collapsedIds.clear();
         measuredHeights.clear();
         measureAndInit();
@@ -1104,18 +1148,32 @@
       const nodes = hierRoot.descendants();
       if (!nodes.length) return;
 
-      const minY = d3.min(nodes, d => d.y) - NODE_WIDTH / 2;
-      const maxY = d3.max(nodes, d => d.y) + NODE_WIDTH / 2;
-      const minX = d3.min(nodes, d => d.x) - NODE_HEIGHT_BASE;
-      const maxX = d3.max(nodes, d => d.x) + NODE_HEIGHT_BASE;
-
-      const treeW = maxY - minY;
-      const treeH = maxX - minX;
-      const scale = Math.min(0.95 * W / treeW, 0.95 * H / treeH, 1.5);
-      const tx = -minY * scale + (W - treeW * scale) / 2;
-      const ty = -minX * scale + (H - treeH * scale) / 2;
-
-      svg.call(zoom.transform, d3.zoomIdentity.translate(tx, ty).scale(scale));
+      let treeW, treeH, tx, ty;
+      if (currentLayout === 'lr') {
+        // LR: depth is y (→ SVG x), breadth is x (→ SVG y)
+        const minY = d3.min(nodes, d => d.y) - NODE_WIDTH / 2;
+        const maxY = d3.max(nodes, d => d.y) + NODE_WIDTH / 2;
+        const minX = d3.min(nodes, d => d.x) - NODE_HEIGHT_BASE;
+        const maxX = d3.max(nodes, d => d.x) + NODE_HEIGHT_BASE;
+        treeW = maxY - minY;
+        treeH = maxX - minX;
+        const scale = Math.min(0.95 * W / treeW, 0.95 * H / treeH, 1.5);
+        tx = -minY * scale + (W - treeW * scale) / 2;
+        ty = -minX * scale + (H - treeH * scale) / 2;
+        svg.call(zoom.transform, d3.zoomIdentity.translate(tx, ty).scale(scale));
+      } else {
+        // TB: breadth is x (→ SVG x), depth is y (→ SVG y)
+        const minX = d3.min(nodes, d => d.x) - NODE_WIDTH / 2;
+        const maxX = d3.max(nodes, d => d.x) + NODE_WIDTH / 2;
+        const minY = d3.min(nodes, d => d.y) - NODE_HEIGHT_BASE;
+        const maxY = d3.max(nodes, d => d.y) + NODE_HEIGHT_BASE;
+        treeW = maxX - minX;
+        treeH = maxY - minY;
+        const scale = Math.min(0.95 * W / treeW, 0.95 * H / treeH, 1.5);
+        tx = -minX * scale + (W - treeW * scale) / 2;
+        ty = -minY * scale + (H - treeH * scale) / 2;
+        svg.call(zoom.transform, d3.zoomIdentity.translate(tx, ty).scale(scale));
+      }
     }
 
     // -----------------------------------------------------------------------
@@ -1327,17 +1385,20 @@
       const btnDeck = document.getElementById('btn-view-deck');
       const helpTree = document.getElementById('help-tree');
       const helpDeck = document.getElementById('help-deck');
+      const layoutGroup = document.getElementById('layout-toggle-group');
 
       if (currentView === 'tree') {
         btnTree.classList.add('active');
         btnDeck.classList.remove('active');
         helpTree.style.display = '';
         helpDeck.style.display = 'none';
+        layoutGroup.style.display = '';
       } else {
         btnTree.classList.remove('active');
         btnDeck.classList.add('active');
         helpTree.style.display = 'none';
         helpDeck.style.display = '';
+        layoutGroup.style.display = 'none';
       }
     }
 
@@ -1367,7 +1428,7 @@
         if (targetView === 'tree' && options.focusNodeData) {
           pendingFocus = options.focusNodeData;
           collapsedIds.clear();
-          nodePositions.clear();
+          getNodePositions().clear();
           measuredHeights.clear();
           measureAndInit();
         }
@@ -1438,8 +1499,8 @@
       runLayout(hierRoot);
       hierRoot.each(d => {
         const k = nodeKey(d.data);
-        if (nodePositions.has(k)) {
-          const pos = nodePositions.get(k);
+        if (getNodePositions().has(k)) {
+          const pos = getNodePositions().get(k);
           d.x = pos.x; d.y = pos.y;
         }
       });
@@ -1452,8 +1513,8 @@
       const W = container.clientWidth;
       const H = container.clientHeight;
       const scale = 1.0;
-      const tx = W / 2 - target.y * scale;
-      const ty = H / 2 - target.x * scale;
+      const tx = currentLayout === 'lr' ? W / 2 - target.y * scale : W / 2 - target.x * scale;
+      const ty = currentLayout === 'lr' ? H / 2 - target.x * scale : H / 2 - target.y * scale;
 
       svg.transition().duration(500)
         .call(zoom.transform, d3.zoomIdentity.translate(tx, ty).scale(scale));
@@ -1464,6 +1525,34 @@
       initDeck();
       animateSwitch('deck', 'view-exit', { skipInit: true });
     });
+
+    // -----------------------------------------------------------------------
+    // Layout toggle (LR ↔ TB) — tree view only
+    // -----------------------------------------------------------------------
+    function updateLayoutUI() {
+      const btnLr = document.getElementById('btn-layout-lr');
+      const btnTb = document.getElementById('btn-layout-tb');
+      if (currentLayout === 'lr') {
+        btnLr.classList.add('active');
+        btnTb.classList.remove('active');
+      } else {
+        btnLr.classList.remove('active');
+        btnTb.classList.add('active');
+      }
+    }
+
+    function switchLayout(layout) {
+      if (layout === currentLayout) return;
+      currentLayout = layout;
+      updateLayoutUI();
+      // measuredHeights depend on node content, not orientation — safe to reuse.
+      // Clear them anyway so TB gets a fresh NODE_DY_TB computed from the heights.
+      measuredHeights.clear();
+      measureAndInit();
+    }
+
+    document.getElementById('btn-layout-lr').addEventListener('click', () => switchLayout('lr'));
+    document.getElementById('btn-layout-tb').addEventListener('click', () => switchLayout('tb'));
 
     // -----------------------------------------------------------------------
     // Deck pinch-to-zoom touch handlers

@@ -15,6 +15,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased] — 2026.2.dev0
 
+### Added
+
+- **d3html orientation toggle**: the tree view now has a **↔ LR / ↕ TB** layout button
+  group in the toolbar, letting users switch between left-to-right (default) and
+  top-to-bottom tree orientations interactively in the browser. Manual node-drag positions
+  are kept separately per orientation. No CLI or exporter changes required.
+
 ## [2026.1] — 2026-05-04
 
 First public release on PyPI.
