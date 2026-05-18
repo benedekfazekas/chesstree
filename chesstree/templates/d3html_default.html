@@ -28,16 +28,11 @@
       --card-drag-border:  #e94560;
       --card-drag-shadow:  #e94560aa;
       --card-collapsed-border: #888;
-      --root-card-bg:  #0f3460;
-      --root-card-border: #533483;
       --var-card-bg:   #2d1f52;
       --var-card-border: #4a3070;
       --var-card-hover-border: #7755aa;
       --var-card-hover-shadow: #7755aaaa;
       --var-header-color: #b09ad0;
-      --root-title-color: #fff;
-      --root-meta-color:  #aaa;
-      --root-comment-color: #ccc;
       --moves-color:   #d0d0d0;
       --move-num-color: #888;
       --comment-color: #b0b8c8;
@@ -68,16 +63,11 @@
       --card-drag-border:  #e94560;
       --card-drag-shadow:  #e9456044;
       --card-collapsed-border: #aaa;
-      --root-card-bg:  #dde4f4;
-      --root-card-border: #7755aa;
       --var-card-bg:   #f0ebfa;
       --var-card-border: #c4add8;
       --var-card-hover-border: #7755aa;
       --var-card-hover-shadow: #7755aa44;
       --var-header-color: #5a3a80;
-      --root-title-color: #1a1a2e;
-      --root-meta-color:  #555;
-      --root-comment-color: #444;
       --moves-color:   #222;
       --move-num-color: #777;
       --comment-color: #445;
@@ -109,14 +99,74 @@
       flex-shrink: 0;
     }
 
+    .header-title-group {
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+    }
     header h1 {
       font-size: 0.95rem;
       font-weight: 600;
       color: var(--text);
-      flex: 1;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
+    }
+    .header-meta {
+      font-size: 0.68rem;
+      color: var(--text-muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      margin-top: 1px;
+    }
+
+    /* Header h1 row: title + comment icon inline */
+    .header-h1-row {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      min-width: 0;
+      overflow: hidden;
+    }
+    .header-h1-row h1 {
+      flex-shrink: 1;
+      min-width: 0;
+    }
+    #btn-comment-icon {
+      background: none !important;
+      border: none !important;
+      padding: 0;
+      font-size: 1rem;
+      cursor: pointer;
+      flex-shrink: 0;
+      opacity: 0.7;
+      line-height: 1;
+    }
+    #btn-comment-icon:hover { opacity: 1; background: none !important; }
+
+    /* Game comment overlay — floats over the tree */
+    #game-comment-overlay {
+      position: absolute;
+      top: 12px;
+      left: 12px;
+      z-index: 20;
+      max-width: 420px;
+      padding: 10px 14px;
+      background: var(--chrome-bg);
+      border: 1px solid var(--chrome-border);
+      border-left: 4px solid var(--link-var-stroke);
+      border-radius: 0 4px 4px 0;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+      cursor: pointer;
+    }
+    .game-comment-text {
+      font-style: italic;
+      color: var(--text);
+      font-size: 0.82rem;
+      line-height: 1.5;
+      margin: 0;
     }
 
     header button {
@@ -172,12 +222,6 @@
       cursor: grabbing;
     }
 
-    /* Root card */
-    .node-card.root-card {
-      background: var(--root-card-bg);
-      border-color: var(--root-card-border);
-    }
-
     /* Variation card — purple tint to distinguish from main line */
     .node-card.variation-card {
       background: var(--var-card-bg);
@@ -190,10 +234,6 @@
     .node-card.variation-card .node-header {
       color: var(--var-header-color);
     }
-
-    .root-title { font-weight: 700; font-size: 0.85rem; color: var(--root-title-color); }
-    .root-meta  { color: var(--root-meta-color); font-size: 0.72rem; margin-top: 2px; }
-    .root-comment { font-style: italic; color: var(--root-comment-color); margin-top: 4px; font-size: 0.75rem; }
 
     .moves-line { color: var(--moves-color); word-break: break-word; }
     .move-num  { color: var(--move-num-color); font-size: 0.72rem; }
@@ -386,9 +426,6 @@
       width: 180px;
       height: 180px;
     }
-    .deck-card-content .root-title { font-size: 1rem; }
-    .deck-card-content .root-meta  { font-size: 0.82rem; }
-    .deck-card-content .root-comment { font-size: 0.85rem; }
 
     .deck-counter {
       font-size: 0.75rem;
@@ -450,7 +487,13 @@
 </head>
 <body>
   <header>
-    <h1>{{CHESSTREE_TITLE}}</h1>
+    <div class="header-title-group">
+      <div class="header-h1-row">
+        <h1>{{CHESSTREE_TITLE}}</h1>
+        <button id="btn-comment-icon" style="display:none" title="Show/hide game comment">💬</button>
+      </div>
+      <span id="header-meta" class="header-meta"></span>
+    </div>
     <div class="view-toggle-group">
       <button id="btn-view-tree" class="view-toggle active" title="Tree view">🌳 Tree</button>
       <button id="btn-view-deck" class="view-toggle" title="Deck view">📇 Deck</button>
@@ -464,6 +507,9 @@
   </header>
 
   <div id="tree-container">
+    <div id="game-comment-overlay" style="display:none">
+      <p class="game-comment-text" id="game-comment-text"></p>
+    </div>
     <svg id="tree-svg">
       <g id="zoom-layer">
         <g id="links-layer"></g>
@@ -496,6 +542,30 @@
     const treeData = JSON.parse(`{{CHESSTREE_TREE_DATA}}`);
     {{CHESSTREE_IMAGES}}
     {{CHESSTREE_HOVER_DATA}}
+
+    // Populate header metadata and game-comment overlay from treeData.
+    (function() {
+      const headers = treeData.headers || {};
+      const metaParts = [];
+      ['Event', 'Site'].forEach(k => { const v = headers[k]; if (v && v !== '?') metaParts.push(v); });
+      const eco = headers.ECO, opening = headers.Opening, result = headers.Result;
+      if (eco     && eco     !== '?') metaParts.push(`ECO: ${eco}`);
+      if (opening && opening !== '?') metaParts.push(opening);
+      if (result  && result  !== '?') metaParts.push(`Result: ${result}`);
+      const metaEl = document.getElementById('header-meta');
+      if (metaEl && metaParts.length) metaEl.textContent = metaParts.join(' · ');
+
+      if (treeData.gameComment) {
+        const iconBtn = document.getElementById('btn-comment-icon');
+        const overlay = document.getElementById('game-comment-overlay');
+        const textEl  = document.getElementById('game-comment-text');
+        if (iconBtn && overlay && textEl) {
+          textEl.textContent = treeData.gameComment;
+          iconBtn.style.display = '';
+          overlay.style.display = '';
+        }
+      }
+    })();
 
     // -----------------------------------------------------------------------
     // Dimensions
@@ -544,14 +614,10 @@
     const measuredHeights = new Map();   // nodeKey → measured px height
 
     function estimateNodeHeight(d) {
+      if (d.data.type === "root") return 0;
       const key = nodeKey(d.data);
       if (measuredHeights.has(key)) return measuredHeights.get(key);
       // Fallback estimate used before measurement pass completes
-      if (d.data.type === "root") {
-        let h = 58;
-        if (d.data.gameComment) h += 18;
-        return h;
-      }
       let h = NODE_HEIGHT_BASE;
       const moves = d.data.moves || [];
       const hasComment = moves.some(m => m.comment);
@@ -671,6 +737,9 @@
       const hierRoot = buildHierarchy(treeData);
       runLayout(hierRoot);
 
+      // Refresh TB alignment data from D3 layout positions (before manual overrides).
+      computeTbDepthTopY(hierRoot);
+
       // Apply manual overrides
       hierRoot.each(d => {
         const key = nodeKey(d.data);
@@ -681,13 +750,31 @@
         }
       });
 
-      const allNodes = hierRoot.descendants();
-      const allLinks = hierRoot.links();
+      const allNodes = hierRoot.descendants().filter(d => d.data.type !== 'root');
+      const allLinks = hierRoot.links().filter(d => d.source.data.type !== 'root');
+
+      // Continuation links between consecutive main-line siblings
+      const mainLineNodes = (hierRoot.children || []).filter(d => d.data.isMainLine);
+      const contData = [];
+      for (let i = 0; i < mainLineNodes.length - 1; i++) {
+        contData.push({ a: mainLineNodes[i], b: mainLineNodes[i + 1] });
+      }
+      const contSel = linksLayer.selectAll(".continuation-link")
+        .data(contData, d => nodeKey(d.a.data) + '_cont');
+      contSel.enter()
+        .append("path")
+        .merge(contSel)
+        .attr("class", "link-main continuation-link")
+        .attr("d", d => buildContPath(d.a, d.b))
+        .attr("opacity", 0)
+        .transition().duration(200)
+        .attr("opacity", 1);
+      contSel.exit().transition().duration(200).attr("opacity", 0).remove();
 
       // Render links
       const linkPath = currentLayout === 'lr'
-        ? d3.linkHorizontal().x(d => d.y).y(d => d.x)
-        : d3.linkVertical().x(d => d.x).y(d => d.y);
+        ? d => lrLinkPath(d)
+        : d => tbLinkPath(d);
 
       const linkSel = linksLayer.selectAll(".tree-link")
         .data(allLinks, d => nodeKey(d.target.data));
@@ -726,7 +813,7 @@
             : (d.source.x + d.target.x) / 2;
           const my = currentLayout === 'lr'
             ? (d.source.x + d.target.x) / 2 - 4
-            : (d.source.y + d.target.y) / 2 - 4;
+            : (tbNodeBottomY(d.source) + tbNodeTopY(d.target)) / 2 - 4;
           return `translate(${mx},${my})`;
         });
       edgeLabelMerge.select("text")
@@ -763,7 +850,7 @@
         .attr("class", "tree-node")
         .attr("transform", d => currentLayout === 'lr'
           ? `translate(${d.y - NODE_WIDTH / 2},${d.x - estimateNodeHeight(d) / 2})`
-          : `translate(${d.x - NODE_WIDTH / 2},${d.y - estimateNodeHeight(d) / 2})`);
+          : `translate(${d.x - NODE_WIDTH / 2},${tbNodeTopY(d)})`);
 
       nodeEnter.each(function(d) {
         const g = d3.select(this);
@@ -812,7 +899,7 @@
       nodeMerge.transition().duration(200)
         .attr("transform", d => currentLayout === 'lr'
           ? `translate(${d.y - NODE_WIDTH / 2},${d.x - estimateNodeHeight(d) / 2})`
-          : `translate(${d.x - NODE_WIDTH / 2},${d.y - estimateNodeHeight(d) / 2})`);
+          : `translate(${d.x - NODE_WIDTH / 2},${tbNodeTopY(d)})`);
 
       // Refresh HTML content (collapse state may have changed)
       nodeMerge.each(function(d) {
@@ -831,29 +918,6 @@
     // -----------------------------------------------------------------------
     // Node HTML builder
     // -----------------------------------------------------------------------
-
-    function buildRootHTML(data) {
-      const headers = data.headers || {};
-      const event   = headers.Event  || "";
-      const site    = headers.Site   || "";
-      const eco     = headers.ECO    || "";
-      const opening = headers.Opening || "";
-      const result  = headers.Result  || "";
-      const metaParts = [event, site].filter(Boolean);
-      if (eco && eco !== "?") metaParts.push(`ECO: ${eco}`);
-      if (opening && opening !== "?") metaParts.push(opening);
-      if (result && result !== "?") metaParts.push(`Result: ${result}`);
-      let html = `<div class="node-card root-card">`;
-      html += `<div class="root-title">${esc(data.title || "")}</div>`;
-      if (metaParts.length) {
-        html += `<div class="root-meta">${esc(metaParts.join(" · "))}</div>`;
-      }
-      if (data.gameComment) {
-        html += `<div class="root-comment">${esc(data.gameComment)}</div>`;
-      }
-      html += `</div>`;
-      return html;
-    }
 
     function segmentHeader(data, collapsedCount) {
       const moves = data.moves || [];
@@ -909,6 +973,78 @@
     }
 
     // -----------------------------------------------------------------------
+    // Continuation path helper (main-line sibling links)
+    // -----------------------------------------------------------------------
+    function buildContPath(a, b) {
+      const ha = measuredHeights.get(nodeKey(a.data)) || estimateNodeHeight(a);
+      const hb = measuredHeights.get(nodeKey(b.data)) || estimateNodeHeight(b);
+      if (currentLayout === 'lr') {
+        // LR: depth→SVG-x (d.y), breadth→SVG-y (d.x); straight line bottom-of-a to top-of-b.
+        // Subtract 12 (breathing room) so the line starts at the card's visual bottom,
+        // passing through the transparent zone rather than leaving a gap below the card.
+        return `M ${a.y} ${a.x + ha / 2 - 12} L ${b.y} ${b.x - hb / 2}`;
+      } else {
+        // TB: each end anchored to its own box header (6px card padding + 17px header + 14px gap = 37px).
+        // Using separate y per node so the line stays attached when one box is dragged vertically.
+        const CONT_OFFSET = 37;
+        const ya = tbNodeTopY(a) + CONT_OFFSET;
+        const yb = tbNodeTopY(b) + CONT_OFFSET;
+        return `M ${a.x + NODE_WIDTH / 2} ${ya} L ${b.x - NODE_WIDTH / 2} ${yb}`;
+      }
+    }
+
+    // -----------------------------------------------------------------------
+    // TB layout visual-position helpers
+    // (recomputed each render() / drag-start so links and nodes stay in sync)
+    // -----------------------------------------------------------------------
+    let _tbDepthTopY = new Map(); // depth → visual top y; refreshed by computeTbDepthTopY()
+
+    function computeTbDepthTopY(hierRoot) {
+      _tbDepthTopY.clear();
+      if (currentLayout !== 'tb') return;
+      const depthMaxH = new Map();
+      hierRoot.each(d => {
+        if (d.data.type === 'root') return;
+        const h = estimateNodeHeight(d);
+        depthMaxH.set(d.depth, Math.max(depthMaxH.get(d.depth) || 0, h));
+      });
+      hierRoot.each(d => {
+        if (!_tbDepthTopY.has(d.depth))
+          _tbDepthTopY.set(d.depth, d.y - (depthMaxH.get(d.depth) || 0) / 2);
+      });
+    }
+
+    // Visual top y: depth-aligned for auto nodes; center-based for dragged nodes.
+    function tbNodeTopY(d) {
+      const h = estimateNodeHeight(d);
+      if (getNodePositions().has(nodeKey(d.data))) return d.y - h / 2;
+      return _tbDepthTopY.get(d.depth) ?? (d.y - h / 2);
+    }
+    function tbNodeCenterY(d) { return tbNodeTopY(d) + estimateNodeHeight(d) / 2; }
+    // Card visual bottom: 12px above the foreignObject bottom (breathing room is transparent).
+    function tbNodeBottomY(d) { return tbNodeTopY(d) + estimateNodeHeight(d) - 12; }
+
+    // Cubic-bezier link from bottom of source to top of target (TB mode).
+    function tbLinkPath(link) {
+      const s = link.source, t = link.target;
+      const sy = tbNodeBottomY(s), ty = tbNodeTopY(t);
+      const my = (sy + ty) / 2;
+      return `M ${s.x} ${sy} C ${s.x} ${my}, ${t.x} ${my}, ${t.x} ${ty}`;
+    }
+
+    // S-curve link from right edge of source to left edge of target (LR mode).
+    // Starting from the box edge (not the center) prevents the bezier from routing
+    // through the transparent breathing-room zone at the bottom of the foreignObject.
+    function lrLinkPath(link) {
+      const sx = link.source.y + NODE_WIDTH / 2;
+      const sy = link.source.x;
+      const tx = link.target.y - NODE_WIDTH / 2;
+      const ty = link.target.x;
+      const mx = (sx + tx) / 2;
+      return `M ${sx} ${sy} C ${mx} ${sy}, ${mx} ${ty}, ${tx} ${ty}`;
+    }
+
+    // -----------------------------------------------------------------------
     // Drag behaviour
     // -----------------------------------------------------------------------
     function makeDrag() {
@@ -924,6 +1060,8 @@
           origPositions = new Map();
           const hierRoot = buildHierarchy(treeData);
           runLayout(hierRoot);
+          // Refresh TB alignment from D3 positions BEFORE overrides
+          computeTbDepthTopY(hierRoot);
           // Re-apply any existing manual overrides so origPositions are current
           hierRoot.each(n => {
             const k = nodeKey(n.data);
@@ -935,7 +1073,14 @@
           const draggedNode = hierRoot.descendants().find(n => nodeKey(n.data) === nodeKey(d.data));
           if (!draggedNode) return;
           const targets = subtreeMode ? draggedNode.descendants() : [draggedNode];
-          targets.forEach(n => origPositions.set(nodeKey(n.data), { x: n.x, y: n.y }));
+          targets.forEach(n => {
+            // In TB mode, nodes are top-aligned at _tbDepthTopY, not at d.y (D3 layout center).
+            // Store the visual-center y so the first drag event doesn't jump by (maxH - h)/2.
+            const effY = currentLayout === 'tb'
+              ? tbNodeTopY(n) + estimateNodeHeight(n) / 2
+              : n.y;
+            origPositions.set(nodeKey(n.data), { x: n.x, y: effY });
+          });
           d3.select(this).select(".node-card").classed("dragging", true);
         })
         .on("drag", function(event, d) {
@@ -969,8 +1114,10 @@
           // Re-draw links and edge labels live
           linksLayer.selectAll(".tree-link")
             .attr("d", currentLayout === 'lr'
-              ? d3.linkHorizontal().x(n => n.y).y(n => n.x)
-              : d3.linkVertical().x(n => n.x).y(n => n.y));
+              ? d => lrLinkPath(d)
+              : d => tbLinkPath(d));
+          linksLayer.selectAll(".continuation-link")
+            .attr("d", d => buildContPath(d.a, d.b));
           edgeLabsLayer.selectAll(".edge-label-g")
             .attr("transform", l => {
               const mx = currentLayout === 'lr'
@@ -978,7 +1125,7 @@
                 : (l.source.x + l.target.x) / 2;
               const my = currentLayout === 'lr'
                 ? (l.source.x + l.target.x) / 2 - 4
-                : (l.source.y + l.target.y) / 2 - 4;
+                : (tbNodeBottomY(l.source) + tbNodeTopY(l.target)) / 2 - 4;
               return `translate(${mx},${my})`;
             });
         })
@@ -1074,7 +1221,6 @@
 
     function buildNodeHTML(d) {
       const data = d.data;
-      if (data.type === "root") return buildRootHTML(data);
       return buildSegmentHTML(d, data);
     }
 
@@ -1096,6 +1242,18 @@
     btnTheme.addEventListener("click", function() {
       applyTheme(!document.documentElement.classList.contains("light"));
     });
+
+    // Comment icon and overlay: clicking either toggles the overlay
+    (function() {
+      const iconBtn = document.getElementById('btn-comment-icon');
+      const overlay = document.getElementById('game-comment-overlay');
+      if (!iconBtn || !overlay) return;
+      function toggleOverlay() {
+        overlay.style.display = overlay.style.display === 'none' ? '' : 'none';
+      }
+      iconBtn.addEventListener('click', toggleOverlay);
+      overlay.addEventListener('click', toggleOverlay);
+    })();
 
     // -----------------------------------------------------------------------
     // Keyboard shortcuts
@@ -1145,7 +1303,7 @@
       // Collect all node positions from the rendered DOM
       const hierRoot = buildHierarchy(treeData);
       runLayout(hierRoot);
-      const nodes = hierRoot.descendants();
+      const nodes = hierRoot.descendants().filter(d => d.data.type !== 'root');
       if (!nodes.length) return;
 
       let treeW, treeH, tx, ty;
@@ -1162,11 +1320,12 @@
         ty = -minX * scale + (H - treeH * scale) / 2;
         svg.call(zoom.transform, d3.zoomIdentity.translate(tx, ty).scale(scale));
       } else {
-        // TB: breadth is x (→ SVG x), depth is y (→ SVG y)
+        // TB: breadth is x (→ SVG x), depth is y (→ SVG y); nodes are top-aligned.
+        computeTbDepthTopY(hierRoot);
         const minX = d3.min(nodes, d => d.x) - NODE_WIDTH / 2;
         const maxX = d3.max(nodes, d => d.x) + NODE_WIDTH / 2;
-        const minY = d3.min(nodes, d => d.y) - NODE_HEIGHT_BASE;
-        const maxY = d3.max(nodes, d => d.y) + NODE_HEIGHT_BASE;
+        const minY = d3.min(nodes, d => tbNodeTopY(d));
+        const maxY = d3.max(nodes, d => tbNodeTopY(d) + estimateNodeHeight(d));
         treeW = maxX - minX;
         treeH = maxY - minY;
         const scale = Math.min(0.95 * W / treeW, 0.95 * H / treeH, 1.5);
@@ -1191,6 +1350,7 @@
 
       const foMap = new Map();
       allNodes.forEach(d => {
+        if (d.data.type === "root") return;
         const key = nodeKey(d.data);
         const fo = offscreen.append("foreignObject")
           .attr("width", NODE_WIDTH)
@@ -1229,10 +1389,7 @@
     const deckState = { stack: [] };
 
     function initDeck() {
-      const mainLine = [treeData];
-      (treeData.children || []).forEach(c => {
-        if (c.isMainLine) mainLine.push(c);
-      });
+      const mainLine = (treeData.children || []).filter(c => c.isMainLine);
       deckState.stack = [{ items: mainLine, index: 0 }];
     }
 
@@ -1306,11 +1463,7 @@
 
       // Card HTML
       let cardHTML;
-      if (item.type === 'root') {
-        cardHTML = buildRootHTML(item);
-      } else {
-        cardHTML = buildSegmentHTML({ data: item }, item);
-      }
+      cardHTML = buildSegmentHTML({ data: item }, item);
 
       // Variation buttons
       let variationsHTML = '';
@@ -1453,24 +1606,18 @@
     }
 
     function buildDeckStackForNode(targetData) {
+      if (targetData === treeData) return null;
       const path = findPathToNode(treeData, targetData);
       if (!path) return null;
 
-      const mainLine = [treeData];
-      (treeData.children || []).forEach(c => {
-        if (c.isMainLine) mainLine.push(c);
-      });
-
-      if (targetData === treeData) {
-        return [{ items: mainLine, index: 0 }];
-      }
+      const mainLine = (treeData.children || []).filter(c => c.isMainLine);
 
       const stack = [];
       const firstChild = path[1];
 
       if (firstChild.isMainLine) {
         const mainIdx = mainLine.indexOf(firstChild);
-        stack.push({ items: mainLine, index: mainIdx >= 0 ? mainIdx : 1 });
+        stack.push({ items: mainLine, index: mainIdx >= 0 ? mainIdx : 0 });
       } else {
         stack.push({ items: mainLine, index: 0 });
         const rootVars = getDeckVariations(treeData);

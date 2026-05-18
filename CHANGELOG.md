@@ -22,6 +22,18 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
   top-to-bottom tree orientations interactively in the browser. Manual node-drag positions
   are kept separately per orientation. No CLI or exporter changes required.
 
+- **d3html root node removed**: the synthetic root node (which duplicated the page
+  header's game metadata) is no longer rendered in the tree or deck views. All game
+  information — White, Black, date, event, result — is shown in the page header only.
+
+- **d3html game comment overlay**: when the PGN contains a game-level comment, a 💬
+  button appears next to the title in the header. Clicking it (or clicking the overlay
+  itself) toggles a full-width overlay showing the comment text.
+
+- **d3html main-line sibling connectors**: consecutive main-line segment nodes are now
+  joined by a visible continuation line, making the forward flow of the game clear even
+  after the root node was removed.
+
 ## [2026.1] — 2026-05-04
 
 First public release on PyPI.
