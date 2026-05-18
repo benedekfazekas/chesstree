@@ -17,6 +17,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ### Added
 
+- **d3html collapse/expand all toggle**: a single smart toolbar button lets users collapse or
+  expand the entire tree at once. Its label and icon track the current state — `⊟ Collapse All`
+  (all expanded), `⊞ Expand All` (all collapsed), or `◑ Collapse All` (mixed, after manual
+  per-node adjustments). Clicking from a mixed state always collapses all. The button is hidden
+  in deck view.
+
 - **d3html orientation toggle**: the tree view now has a **↔ LR / ↕ TB** layout button
   group in the toolbar, letting users switch between left-to-right (default) and
   top-to-bottom tree orientations interactively in the browser. Manual node-drag positions

@@ -271,6 +271,7 @@ Features of the viewer:
   - **Dark theme** with colour-coded nodes: main-line segments (blue) are visually distinct from variation segments (purple).
   - **Node headers** show the line type and move range, e.g. "Main line: 1–12" or "Variation: 8–10".
   - **Collapsible nodes** — click any node to hide its variation children while keeping the main-line continuation visible. A badge in the header shows how many nodes are hidden. Ctrl+click collapses all children including the main-line continuation.
+  - **Collapse/Expand All toggle** — a single smart button in the toolbar collapses or expands the entire tree at once. The button label and icon reflect the current state: `⊟ Collapse All` (all expanded), `⊞ Expand All` (all collapsed), or `◑ Collapse All` (mixed — some nodes manually adjusted). Clicking from a mixed state always collapses all.
   - **Pan and zoom** via scroll and drag.
   - **Drag-to-reposition** individual nodes.
   - **Orientation toggle** — switch between left-to-right (default) and top-to-bottom tree layout with the ↔ LR / ↕ TB buttons.

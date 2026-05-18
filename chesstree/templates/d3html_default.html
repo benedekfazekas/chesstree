@@ -502,6 +502,7 @@
       <button id="btn-layout-lr" class="view-toggle active" title="Left-to-right tree layout">↔ LR</button>
       <button id="btn-layout-tb" class="view-toggle" title="Top-to-bottom tree layout">↕ TB</button>
     </div>
+    <button id="btn-collapse-toggle" title="All nodes expanded — click to collapse all">⊟ Collapse All</button>
     <button id="btn-theme" title="Toggle light/dark theme">☀ Light</button>
     <button id="btn-reset" title="Re-run layout (R)">↺ Reset</button>
   </header>
@@ -913,6 +914,8 @@
         .transition().duration(200)
         .attr("opacity", 0)
         .remove();
+
+      updateCollapseToggle();
     }
 
     // -----------------------------------------------------------------------
@@ -1540,18 +1543,21 @@
       const helpDeck = document.getElementById('help-deck');
       const layoutGroup = document.getElementById('layout-toggle-group');
 
+      const collapseBtn = document.getElementById('btn-collapse-toggle');
       if (currentView === 'tree') {
         btnTree.classList.add('active');
         btnDeck.classList.remove('active');
         helpTree.style.display = '';
         helpDeck.style.display = 'none';
         layoutGroup.style.display = '';
+        if (collapseBtn) collapseBtn.style.display = '';
       } else {
         btnTree.classList.remove('active');
         btnDeck.classList.add('active');
         helpTree.style.display = 'none';
         helpDeck.style.display = '';
         layoutGroup.style.display = 'none';
+        if (collapseBtn) collapseBtn.style.display = 'none';
       }
     }
 
@@ -1700,6 +1706,72 @@
 
     document.getElementById('btn-layout-lr').addEventListener('click', () => switchLayout('lr'));
     document.getElementById('btn-layout-tb').addEventListener('click', () => switchLayout('tb'));
+
+    // -----------------------------------------------------------------------
+    // Collapse / Expand toggle
+    // -----------------------------------------------------------------------
+    function getCollapseToggleState() {
+      let nodesWithChildren = 0;
+      let collapsedCount = 0;
+      function walk(node) {
+        if (node.type !== 'root' && node.children && node.children.length) {
+          nodesWithChildren++;
+          if (collapsedIds.has(nodeKey(node))) collapsedCount++;
+        }
+        (node.children || []).forEach(walk);
+      }
+      walk(treeData);
+      if (nodesWithChildren === 0) return 'none';
+      if (collapsedCount === 0) return 'expanded';
+      if (collapsedCount === nodesWithChildren) return 'collapsed';
+      return 'mixed';
+    }
+
+    function updateCollapseToggle() {
+      const btn = document.getElementById('btn-collapse-toggle');
+      if (!btn) return;
+      const state = getCollapseToggleState();
+      if (state === 'collapsed') {
+        btn.textContent = '⊞ Expand All';
+        btn.title = 'All nodes collapsed — click to expand all';
+        btn.style.fontStyle = '';
+        btn.style.opacity = '';
+      } else if (state === 'mixed') {
+        btn.textContent = '◑ Collapse All';
+        btn.title = 'Some nodes collapsed — click to collapse all';
+        btn.style.fontStyle = 'italic';
+        btn.style.opacity = '0.8';
+      } else {
+        btn.textContent = '⊟ Collapse All';
+        btn.title = 'All nodes expanded — click to collapse all';
+        btn.style.fontStyle = '';
+        btn.style.opacity = '';
+      }
+    }
+
+    function collapseAll() {
+      function walk(node) {
+        if (node.type !== 'root' && node.children && node.children.length) {
+          collapsedIds.add(nodeKey(node));
+        }
+        (node.children || []).forEach(walk);
+      }
+      walk(treeData);
+      render();
+    }
+
+    function expandAll() {
+      collapsedIds.clear();
+      render();
+    }
+
+    document.getElementById('btn-collapse-toggle').addEventListener('click', () => {
+      if (getCollapseToggleState() === 'collapsed') {
+        expandAll();
+      } else {
+        collapseAll();
+      }
+    });
 
     // -----------------------------------------------------------------------
     // Deck pinch-to-zoom touch handlers
