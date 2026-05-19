@@ -499,8 +499,8 @@
       <button id="btn-view-deck" class="view-toggle" title="Deck view">📇 Deck</button>
     </div>
     <div class="view-toggle-group" id="layout-toggle-group">
-      <button id="btn-layout-lr" class="view-toggle active" title="Left-to-right tree layout">↔ LR</button>
-      <button id="btn-layout-tb" class="view-toggle" title="Top-to-bottom tree layout">↕ TB</button>
+      <button id="btn-layout-lr" class="view-toggle" title="Left-to-right tree layout">↔ LR</button>
+      <button id="btn-layout-tb" class="view-toggle active" title="Top-to-bottom tree layout">↕ TB</button>
     </div>
     <button id="btn-collapse-toggle" title="All nodes expanded — click to collapse all">⊟ Collapse All</button>
     <button id="btn-theme" title="Toggle light/dark theme">☀ Light</button>
@@ -637,7 +637,7 @@
     function getNodePositions() { return currentLayout === 'lr' ? _nodePositions_lr : _nodePositions_tb; }
     let collapsedIds  = new Set();   // click: collapse all children
     let currentView   = 'tree';     // 'tree' or 'deck'
-    let currentLayout = 'lr';       // 'lr' (left-to-right) or 'tb' (top-to-bottom)
+    let currentLayout = 'tb';       // 'lr' (left-to-right) or 'tb' (top-to-bottom)
     let clickTimer    = null;       // single/double-click disambiguation
     let pendingFocus  = null;       // nodeKey to zoom to after measureAndInit
 

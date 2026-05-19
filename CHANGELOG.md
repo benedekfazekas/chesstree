@@ -40,6 +40,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
   joined by a visible continuation line, making the forward flow of the game clear even
   after the root node was removed.
 
+- **d3html make ↕ TB layout default** the d3 only tree view defaults to the top to bottom
+  layout
+
 ## [2026.1] — 2026-05-04
 
 First public release on PyPI.
