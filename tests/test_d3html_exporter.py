@@ -211,3 +211,42 @@ class TestBuildHoverDataJs:
         js = _build_hover_data_js(True, {})
         assert "hoverEnabled = true" in js
         assert "hoverImages = {}" in js
+
+
+# ---------------------------------------------------------------------------
+# var_summary_mode plumbing through export_d3html
+# ---------------------------------------------------------------------------
+
+
+class TestVarSummaryMode:
+    def _parse_tree_data(self, html: str) -> dict:
+        import re
+        m = re.search(r'JSON\.parse\(`(.*?)`\)', html, re.DOTALL)
+        assert m is not None
+        raw = m.group(1).replace("\\`", "`").replace("\\\\", "\\").replace("\\${", "${")
+        return json.loads(raw)
+
+    def test_no_mode_tree_data_has_none(self):
+        html, _ = export_d3html(_load(LISPERER))
+        data = self._parse_tree_data(html)
+        assert data.get("varSummaryMode") is None
+
+    def test_leaves_mode_tree_data(self):
+        html, _ = export_d3html(_load(LISPERER), var_summary_mode="leaves")
+        data = self._parse_tree_data(html)
+        assert data["varSummaryMode"] == "leaves"
+
+    def test_all_mode_tree_data(self):
+        html, _ = export_d3html(_load(LISPERER), var_summary_mode="all")
+        data = self._parse_tree_data(html)
+        assert data["varSummaryMode"] == "all"
+
+    def test_for_black_in_tree_data(self):
+        html, _ = export_d3html(_load(LISPERER), board_img_for_black=True)
+        data = self._parse_tree_data(html)
+        assert data["forBlack"] is True
+
+    def test_for_black_false_default(self):
+        html, _ = export_d3html(_load(LISPERER))
+        data = self._parse_tree_data(html)
+        assert data["forBlack"] is False

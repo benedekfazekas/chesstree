@@ -100,12 +100,14 @@ class _D3TreeBuilder:
         board_img_for_black: bool = False,
         hover: bool = False,
         highlight_last_move: bool = True,
+        var_summary_mode: Optional[str] = None,
     ) -> None:
         self.game = game
         self.image_modes = image_modes
         self.orientation = chess.BLACK if board_img_for_black else chess.WHITE
         self.hover = hover
         self.highlight_last_move = highlight_last_move
+        self.var_summary_mode = var_summary_mode
         self._images: dict[str, str] = {}
         self._hover_images: dict[str, str] = {}
 
@@ -133,6 +135,8 @@ class _D3TreeBuilder:
                 if k not in ("FEN", "SetUp")
             },
             "gameComment": game_comment or None,
+            "varSummaryMode": self.var_summary_mode,
+            "forBlack": self.orientation == chess.BLACK,
             "children": [],
         }
 
@@ -267,6 +271,17 @@ class _D3TreeBuilder:
             fen = node.board().fen()
             comment_raw = node.comment or ""
             comment = _PGN_COMMAND_ANNOTATION_RE.sub("", comment_raw).strip() or None
+
+            eval_data: Optional[dict] = None
+            eval_match = chess.pgn.EVAL_REGEX.search(comment_raw)
+            if eval_match:
+                if eval_match.group("mate"):
+                    eval_data = {"mate": int(eval_match.group("mate"))}
+                else:
+                    eval_data = {"cp": round(float(eval_match.group("cp")) * 100)}
+                if eval_match.group("depth"):
+                    eval_data["depth"] = int(eval_match.group("depth"))
+
             moves.append(
                 {
                     "num": _format_move_num(node),
@@ -275,6 +290,7 @@ class _D3TreeBuilder:
                     "nagClass": css_class,
                     "fen": fen,
                     "comment": comment,
+                    "eval": eval_data,
                     "image": None,
                 }
             )
@@ -339,6 +355,7 @@ def export_d3tree(
     board_img_for_black: bool = False,
     hover: bool = False,
     highlight_last_move: bool = True,
+    var_summary_mode: Optional[str] = None,
 ) -> tuple[dict, dict[str, str], dict[str, str]]:
     """Export a chess game as a JSON tree dict plus image dicts.
 
@@ -348,4 +365,4 @@ def export_d3tree(
     - ``hover_images`` maps node-ID → SVG content for hover board popups
       (only populated when ``hover=True``)
     """
-    return _D3TreeBuilder(game, image_modes, board_img_for_black, hover, highlight_last_move).build()
+    return _D3TreeBuilder(game, image_modes, board_img_for_black, hover, highlight_last_move, var_summary_mode).build()

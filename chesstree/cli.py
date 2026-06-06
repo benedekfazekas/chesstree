@@ -104,6 +104,25 @@ def parse_args() -> argparse.Namespace:
         ),
     )
     parser.add_argument(
+        "--var-summary-leaves",
+        action="store_true",
+        dest="var_summary_leaves",
+        help=(
+            "Add a variation summary table to d3html output: one row per leaf variation line "
+            "(variations with no further sub-variations). Always includes the last main-line position."
+        ),
+    )
+    parser.add_argument(
+        "--var-summary-all",
+        action="store_true",
+        dest="var_summary_all",
+        help=(
+            "Add a variation summary table to d3html output: one row for every variation node "
+            "regardless of depth. Always includes the last main-line position. "
+            "Takes precedence over --var-summary-leaves."
+        ),
+    )
+    parser.add_argument(
         "-c", "--concise",
         action="store_true",
         help="Compact output, no pretty-printing (json/edn output only)",
@@ -263,6 +282,7 @@ def game_to_d3html(
     template_file: TextIO | None = None,
     hover: bool = False,
     highlight_last_move: bool = True,
+    var_summary_mode: str | None = None,
 ) -> None:
     print(f"Reading {input_file.name} and converting to d3html", file=sys.stderr)
 
@@ -290,6 +310,7 @@ def game_to_d3html(
             template_path=template_path,
             hover=hover,
             highlight_last_move=highlight_last_move,
+            var_summary_mode=var_summary_mode,
         )
     except ValueError as exc:
         print(f"Error: {exc}", file=sys.stderr)
@@ -319,6 +340,9 @@ def cli() -> None:
     if args.hover and args.format != "d3html":
         print("Warning: -a/--hover-for-all-moves is only used with -f d3html; ignoring.", file=sys.stderr)
 
+    if (args.var_summary_leaves or args.var_summary_all) and args.format != "d3html":
+        print("Warning: --var-summary-leaves/--var-summary-all is only used with -f d3html; ignoring.", file=sys.stderr)
+
     input_fmt = _detect_input_format(args.input, args.input_format)
     output_fmt = args.format
 
@@ -339,6 +363,11 @@ def cli() -> None:
             highlight_last_move=args.highlight_last_move,
         )
     elif input_fmt in ("pgn", "json") and output_fmt == "d3html":
+        var_summary_mode: str | None = None
+        if args.var_summary_all:
+            var_summary_mode = "all"
+        elif args.var_summary_leaves:
+            var_summary_mode = "leaves"
         game_to_d3html(
             args.input, args.output, input_fmt,
             images=args.images,
@@ -346,6 +375,7 @@ def cli() -> None:
             template_file=args.template,
             hover=args.hover,
             highlight_last_move=args.highlight_last_move,
+            var_summary_mode=var_summary_mode,
         )
     else:
         print(

@@ -416,3 +416,99 @@ class TestNodeId:
         nid = _node_id(fen)
         assert nid.startswith("n")
         assert len(nid) == 9  # 'n' + 8 hex chars
+
+
+# ---------------------------------------------------------------------------
+# Eval field in move dicts
+# ---------------------------------------------------------------------------
+
+
+_EVAL_PGN = (
+    "[White \"A\"]\n[Black \"B\"]\n\n"
+    "1. e4 { [%clk 0:09:57] [%eval 0.30,20] Human note } "
+    "1... e5 { [%eval -0.15] } "
+    "2. Nf3 { [%eval #3] } "
+    "2... Nc6 { [%eval #-2,15] } *"
+)
+
+
+class TestMoveEval:
+    def _game(self):
+        return chess.pgn.read_game(io.StringIO(_EVAL_PGN))
+
+    def _moves(self):
+        tree, _, _ = export_d3tree(self._game())
+        return _all_segments(tree)[0]["moves"]
+
+    def test_eval_field_present_on_all_moves(self):
+        for m in self._moves():
+            assert "eval" in m
+
+    def test_eval_cp_parsed(self):
+        moves = self._moves()
+        e4 = moves[0]
+        assert e4["eval"] is not None
+        assert e4["eval"]["cp"] == 30
+        assert e4["eval"]["depth"] == 20
+        assert "mate" not in e4["eval"]
+
+    def test_eval_cp_negative(self):
+        moves = self._moves()
+        e5 = moves[1]
+        assert e5["eval"] is not None
+        assert e5["eval"]["cp"] == -15
+        assert "mate" not in e5["eval"]
+
+    def test_eval_mate_positive(self):
+        moves = self._moves()
+        nf3 = moves[2]
+        assert nf3["eval"] is not None
+        assert nf3["eval"]["mate"] == 3
+        assert "cp" not in nf3["eval"]
+
+    def test_eval_mate_negative_with_depth(self):
+        moves = self._moves()
+        nc6 = moves[3]
+        assert nc6["eval"] is not None
+        assert nc6["eval"]["mate"] == -2
+        assert nc6["eval"]["depth"] == 15
+
+    def test_no_eval_returns_none(self):
+        pgn = "[White \"A\"]\n[Black \"B\"]\n\n1. e4 { just a comment } *"
+        tree, _, _ = export_d3tree(chess.pgn.read_game(io.StringIO(pgn)))
+        moves = _all_segments(tree)[0]["moves"]
+        assert moves[0]["eval"] is None
+
+    def test_comment_stripped_of_eval_annotation(self):
+        """The comment field strips [%eval ...] but the eval field captures it."""
+        moves = self._moves()
+        e4 = moves[0]
+        assert e4["comment"] == "Human note"
+        assert e4["eval"]["cp"] == 30
+
+
+# ---------------------------------------------------------------------------
+# var_summary_mode and forBlack in root dict
+# ---------------------------------------------------------------------------
+
+
+class TestVarSummaryMode:
+    def test_no_mode_default_none(self):
+        tree, _, _ = export_d3tree(_load(LISPERER))
+        assert tree.get("varSummaryMode") is None
+
+    def test_leaves_mode_stored(self):
+        tree, _, _ = export_d3tree(_load(LISPERER), var_summary_mode="leaves")
+        assert tree["varSummaryMode"] == "leaves"
+
+    def test_all_mode_stored(self):
+        tree, _, _ = export_d3tree(_load(LISPERER), var_summary_mode="all")
+        assert tree["varSummaryMode"] == "all"
+
+    def test_for_black_false_default(self):
+        tree, _, _ = export_d3tree(_load(LISPERER))
+        assert tree["forBlack"] is False
+
+    def test_for_black_true_when_set(self):
+        tree, _, _ = export_d3tree(_load(LISPERER), board_img_for_black=True)
+        assert tree["forBlack"] is True

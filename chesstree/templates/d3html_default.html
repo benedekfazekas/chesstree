@@ -252,6 +252,14 @@
       font-size: 0.74rem;
       word-break: break-word;
     }
+    .node-comment a, .game-comment-text a, .deck-var-comment a {
+      color: inherit;
+      text-decoration: underline;
+      opacity: 0.85;
+    }
+    .node-comment a:hover, .game-comment-text a:hover, .deck-var-comment a:hover {
+      opacity: 1;
+    }
 
     .node-image {
       display: block;
@@ -475,8 +483,79 @@
       margin-top: 2px;
     }
 
+    /* Variation summary view */
+    #summary-container {
+      flex: 1;
+      overflow-y: auto;
+      overflow-x: auto;
+      padding: 1rem;
+    }
+
+    .var-summary-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.82rem;
+    }
+    .var-summary-table th {
+      background: var(--chrome-bg);
+      color: var(--text-muted);
+      font-size: 0.72rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      padding: 6px 10px;
+      border-bottom: 2px solid var(--chrome-border);
+      text-align: left;
+      white-space: nowrap;
+    }
+    .var-summary-table td {
+      padding: 6px 10px;
+      vertical-align: top;
+      border-bottom: 1px solid var(--chrome-border);
+    }
+    .var-summary-table tr:last-child td { border-bottom: none; }
+    .var-summary-table tr:hover td { filter: brightness(1.12); }
+
+    .var-summary-row-green td { background: rgba(60, 160, 60, 0.22); }
+    .var-summary-row-red td { background: rgba(200, 60, 60, 0.22); }
+    .var-summary-row-green-strong td { background: rgba(60, 220, 60, 0.35); }
+    .var-summary-row-red-strong td { background: rgba(220, 60, 60, 0.35); }
+
+    .var-summary-mainline-row td { border-left: 3px solid var(--link-main-stroke); }
+    .var-summary-var-row td { border-left: 3px solid var(--link-var-stroke); }
+
+    .vs-comment { font-style: italic; color: var(--comment-color); }
+    .vs-eval { font-weight: 600; white-space: nowrap; }
+    .vs-moves { color: var(--moves-color); word-break: break-word; }
+    .vs-move-num { color: var(--move-num-color); font-size: 0.72rem; }
+
+    .vs-count-cell {
+      text-align: left;
+      white-space: nowrap;
+      vertical-align: top;
+      padding-top: 7px !important;
+    }
+    .vs-count-num {
+      font-size: 0.72rem;
+      color: var(--text-faint);
+      margin-right: 4px;
+    }
+    .vs-nav-btn {
+      background: var(--btn-bg);
+      border: 1px solid var(--btn-border);
+      border-radius: 3px;
+      color: var(--text);
+      cursor: pointer;
+      font-size: 0.75rem;
+      padding: 1px 4px;
+      margin: 1px 1px 0 0;
+      line-height: 1.4;
+      transition: background 0.12s;
+    }
+    .vs-nav-btn:hover { background: var(--btn-hover); }
+
     /* View-switch animations */
-    #tree-container, #deck-container {
+    #tree-container, #deck-container, #summary-container {
       transition: opacity 0.28s ease, transform 0.28s ease;
     }
     .view-exit       { opacity: 0 !important; }
@@ -497,6 +576,7 @@
     <div class="view-toggle-group">
       <button id="btn-view-tree" class="view-toggle active" title="Tree view">🌳 Tree</button>
       <button id="btn-view-deck" class="view-toggle" title="Deck view">📇 Deck</button>
+      <button id="btn-view-summary" class="view-toggle" title="Variation summary" style="display:none">📊 Summary</button>
     </div>
     <div class="view-toggle-group" id="layout-toggle-group">
       <button id="btn-layout-lr" class="view-toggle" title="Left-to-right tree layout">↔ LR</button>
@@ -522,6 +602,8 @@
 
   <div id="deck-container" style="display:none"></div>
 
+  <div id="summary-container" style="display:none"></div>
+
   <div id="help-bar">
     <span id="help-tree">Click node to collapse/expand &nbsp;·&nbsp;
     Double-click to open in deck &nbsp;·&nbsp;
@@ -531,6 +613,7 @@
     Click variation to enter &nbsp;·&nbsp; Esc to go back &nbsp;·&nbsp;
     Double-click card to open in tree &nbsp;·&nbsp;
     Pinch to zoom · drag to pan when zoomed &nbsp;·&nbsp; R to reset</span>
+    <span id="help-summary" style="display:none">Variation summary — one row per variation line</span>
   </div>
 
   <div id="hover-popup"><img id="hover-img" src="" alt="board"></div>
@@ -561,7 +644,7 @@
         const overlay = document.getElementById('game-comment-overlay');
         const textEl  = document.getElementById('game-comment-text');
         if (iconBtn && overlay && textEl) {
-          textEl.textContent = treeData.gameComment;
+          textEl.innerHTML = renderMarkdown(treeData.gameComment);
           iconBtn.style.display = '';
           overlay.style.display = '';
         }
@@ -636,7 +719,7 @@
     const _nodePositions_tb = new Map(); // manual position overrides for TB layout
     function getNodePositions() { return currentLayout === 'lr' ? _nodePositions_lr : _nodePositions_tb; }
     let collapsedIds  = new Set();   // click: collapse all children
-    let currentView   = 'tree';     // 'tree' or 'deck'
+    let currentView   = 'tree';     // 'tree', 'deck', or 'summary'
     let currentLayout = 'tb';       // 'lr' (left-to-right) or 'tb' (top-to-bottom)
     let clickTimer    = null;       // single/double-click disambiguation
     let pendingFocus  = null;       // nodeKey to zoom to after measureAndInit
@@ -825,9 +908,9 @@
           el.selectAll("tspan").remove();
           // Build ordered list of {text, nagClass} lines
           const lines = [];
-          (lbl.startingComment || []).forEach(l => lines.push({ text: l, nagClass: null }));
+          (lbl.startingComment || []).forEach(l => lines.push({ text: stripMarkdown(l), nagClass: null }));
           lines.push({ text: lbl.move, nagClass: lbl.nagClass });
-          (lbl.comment || []).forEach(l => lines.push({ text: l, nagClass: null }));
+          (lbl.comment || []).forEach(l => lines.push({ text: stripMarkdown(l), nagClass: null }));
           lines.forEach((line, i) => {
             const ts = el.append("tspan")
               .attr("x", 0)
@@ -973,6 +1056,44 @@
         .replace(/</g, "&lt;")
         .replace(/>/g, "&gt;")
         .replace(/"/g, "&quot;");
+    }
+
+    // Render a subset of Markdown (bold and links) into safe HTML.
+    // All non-markdown text is HTML-escaped via esc().
+    function renderMarkdown(text) {
+      if (!text) return '';
+      let result = '';
+      let remaining = text;
+      const BOLD_RE = /\*\*(.+?)\*\*/;
+      const LINK_RE = /\[([^\]]+)\]\((https?:\/\/[^)]+)\)/;
+      while (remaining.length > 0) {
+        const boldMatch = BOLD_RE.exec(remaining);
+        const linkMatch = LINK_RE.exec(remaining);
+        const boldIdx = boldMatch ? boldMatch.index : Infinity;
+        const linkIdx = linkMatch ? linkMatch.index : Infinity;
+        if (boldIdx === Infinity && linkIdx === Infinity) {
+          result += esc(remaining);
+          break;
+        }
+        if (boldIdx <= linkIdx) {
+          result += esc(remaining.slice(0, boldIdx));
+          result += `<strong>${esc(boldMatch[1])}</strong>`;
+          remaining = remaining.slice(boldIdx + boldMatch[0].length);
+        } else {
+          result += esc(remaining.slice(0, linkIdx));
+          result += `<a href="${esc(linkMatch[2])}" target="_blank" rel="noopener noreferrer">${esc(linkMatch[1])}</a>`;
+          remaining = remaining.slice(linkIdx + linkMatch[0].length);
+        }
+      }
+      return result;
+    }
+
+    // Strip Markdown bold and link syntax, leaving plain text (for SVG contexts).
+    function stripMarkdown(text) {
+      if (!text) return '';
+      return text
+        .replace(/\*\*(.+?)\*\*/g, '$1')
+        .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1');
     }
 
     // -----------------------------------------------------------------------
@@ -1213,7 +1334,7 @@
           });
         }
         html += `</div>`;
-        if (blk.comment) html += `<div class="node-comment">${esc(blk.comment)}</div>`;
+        if (blk.comment) html += `<div class="node-comment">${renderMarkdown(blk.comment)}</div>`;
         const img = blk.moves[blk.moves.length - 1]?.image;
         if (img) html += `<img class="node-image" src="./${esc(img)}" alt="board position">`;
       });
@@ -1539,36 +1660,55 @@
     function updateViewUI() {
       const btnTree = document.getElementById('btn-view-tree');
       const btnDeck = document.getElementById('btn-view-deck');
+      const btnSummary = document.getElementById('btn-view-summary');
       const helpTree = document.getElementById('help-tree');
       const helpDeck = document.getElementById('help-deck');
+      const helpSummary = document.getElementById('help-summary');
       const layoutGroup = document.getElementById('layout-toggle-group');
 
       const collapseBtn = document.getElementById('btn-collapse-toggle');
       if (currentView === 'tree') {
         btnTree.classList.add('active');
         btnDeck.classList.remove('active');
+        if (btnSummary) btnSummary.classList.remove('active');
         helpTree.style.display = '';
         helpDeck.style.display = 'none';
+        if (helpSummary) helpSummary.style.display = 'none';
         layoutGroup.style.display = '';
         if (collapseBtn) collapseBtn.style.display = '';
-      } else {
+      } else if (currentView === 'deck') {
         btnTree.classList.remove('active');
         btnDeck.classList.add('active');
+        if (btnSummary) btnSummary.classList.remove('active');
         helpTree.style.display = 'none';
         helpDeck.style.display = '';
+        if (helpSummary) helpSummary.style.display = 'none';
+        layoutGroup.style.display = 'none';
+        if (collapseBtn) collapseBtn.style.display = 'none';
+      } else {
+        btnTree.classList.remove('active');
+        btnDeck.classList.remove('active');
+        if (btnSummary) btnSummary.classList.add('active');
+        helpTree.style.display = 'none';
+        helpDeck.style.display = 'none';
+        if (helpSummary) helpSummary.style.display = '';
         layoutGroup.style.display = 'none';
         if (collapseBtn) collapseBtn.style.display = 'none';
       }
+    }
+
+    function _viewContainer(view) {
+      if (view === 'tree') return document.getElementById('tree-container');
+      if (view === 'deck') return document.getElementById('deck-container');
+      return document.getElementById('summary-container');
     }
 
     function animateSwitch(targetView, exitClass, options) {
       if (targetView === currentView) return;
       options = options || {};
 
-      const treeC = document.getElementById('tree-container');
-      const deckC = document.getElementById('deck-container');
-      const outEl = currentView === 'tree' ? treeC : deckC;
-      const inEl  = targetView === 'tree' ? treeC : deckC;
+      const outEl = _viewContainer(currentView);
+      const inEl  = _viewContainer(targetView);
 
       outEl.classList.add(exitClass || 'view-exit');
 
@@ -1582,6 +1722,10 @@
         if (targetView === 'deck') {
           if (!options.skipInit) initDeck();
           renderDeck();
+        }
+
+        if (targetView === 'summary') {
+          renderSummary();
         }
 
         if (targetView === 'tree' && options.focusNodeData) {
@@ -1678,6 +1822,12 @@
       initDeck();
       animateSwitch('deck', 'view-exit', { skipInit: true });
     });
+    (function() {
+      const btnSummary = document.getElementById('btn-view-summary');
+      if (btnSummary) {
+        btnSummary.addEventListener('click', () => animateSwitch('summary', 'view-exit'));
+      }
+    })();
 
     // -----------------------------------------------------------------------
     // Layout toggle (LR ↔ TB) — tree view only
@@ -1820,6 +1970,256 @@
     deckContainer.addEventListener('touchcancel', function() {
       _pinchStartDist = null;
     }, { passive: true });
+
+    // -----------------------------------------------------------------------
+    // Variation summary view
+    // -----------------------------------------------------------------------
+    const varSummaryMode = treeData.varSummaryMode || null;
+    const forBlack = treeData.forBlack || false;
+
+    // Show the summary button only when a summary mode is configured.
+    (function() {
+      const btn = document.getElementById('btn-view-summary');
+      if (btn && varSummaryMode) btn.style.display = '';
+    })();
+
+    // Parse move number and color from an edge label move string like "7. Nc3" or "10… Ng4".
+    // Returns { num: int, isBlack: bool } or null.
+    function _parseEdgeMoveNum(moveStr) {
+      if (!moveStr) return null;
+      const m = moveStr.match(/^(\d+)([.\u2026])/);
+      if (!m) return null;
+      return { num: parseInt(m[1]), isBlack: m[2] === '\u2026' };
+    }
+
+    // Filter parentMoves to only those that precede the child variation's first move.
+    // parentMoves: array of move dicts (with .num field like "7." or "10\u2026")
+    // childEdgeLabelMove: string like "7. Nc3" or "10\u2026 Ng4"
+    function _ancestorMovesForChild(parentMoves, childEdgeLabelMove) {
+      const parsed = _parseEdgeMoveNum(childEdgeLabelMove);
+      if (!parsed) return parentMoves.slice();
+      const { num: childNum, isBlack: childIsBlack } = parsed;
+      return parentMoves.filter(m => {
+        const mNum = parseInt(m.num);
+        const mIsBlack = !m.num.endsWith('.');
+        if (mNum < childNum) return true;
+        // Include white's move if child is black's move (same move number, white goes first)
+        if (mNum === childNum && childIsBlack && !mIsBlack) return true;
+        return false;
+      });
+    }
+
+    // Gather all hoverFens objects along a path for use in hover popups.
+    function _mergeHoverFens(segmentPath) {
+      const merged = {};
+      for (const seg of segmentPath) {
+        Object.assign(merged, seg.hoverFens || {});
+      }
+      return merged;
+    }
+
+    // Collect variation rows from the tree.
+    // Returns array of { fullMoves, segment, segmentPath, isMainLineLast }.
+    function collectVariationRows(mode) {
+      const rows = [];
+      const mainSegments = (treeData.children || []).filter(c => c.isMainLine);
+
+      // Always include the last main-line segment's last move.
+      if (mainSegments.length > 0) {
+        const allMainMoves = mainSegments.flatMap(s => s.moves || []);
+        const lastMainSeg = mainSegments[mainSegments.length - 1];
+        if (allMainMoves.length > 0) {
+          rows.push({ fullMoves: allMainMoves, segment: lastMainSeg, segmentPath: mainSegments, isMainLineLast: true });
+        }
+      }
+
+      // Walk variation segments recursively.
+      function walkVariation(segment, ancestorMoves, segmentPathSoFar) {
+        const moves = segment.moves || [];
+        const varChildren = segment.children || [];
+        const isLeaf = varChildren.length === 0;
+
+        const shouldInclude = mode === 'all' || (mode === 'leaves' && isLeaf);
+        const thisSegPath = [...segmentPathSoFar, segment];
+
+        if (shouldInclude) {
+          const fullMoves = [...ancestorMoves, ...moves];
+          rows.push({ fullMoves, segment, segmentPath: thisSegPath, isMainLineLast: false });
+        }
+
+        // Walk children: each child branches from a prefix of this segment's moves.
+        varChildren.forEach(child => {
+          const edgeMove = child.edgeLabel ? child.edgeLabel.move : null;
+          const ancestorForChild = _ancestorMovesForChild(
+            [...ancestorMoves, ...moves],
+            edgeMove
+          );
+          walkVariation(child, ancestorForChild, thisSegPath);
+        });
+      }
+
+      // For each main-line segment, walk its variation children.
+      let mainAncestorMoves = [];
+      for (let i = 0; i < mainSegments.length; i++) {
+        const mainSeg = mainSegments[i];
+        const mainMoves = mainSeg.moves || [];
+        const hasVarChildren = (mainSeg.children || []).length > 0;
+
+        // Children of mainSeg branch from before its last move (the branching move).
+        const ancestorForChildren = hasVarChildren
+          ? [...mainAncestorMoves, ...mainMoves.slice(0, -1)]
+          : [...mainAncestorMoves, ...mainMoves];
+
+        (mainSeg.children || []).forEach(varChild => {
+          const edgeMove = varChild.edgeLabel ? varChild.edgeLabel.move : null;
+          const ancestorForChild = _ancestorMovesForChild(ancestorForChildren, edgeMove);
+          walkVariation(varChild, ancestorForChild, [mainSeg]);
+        });
+
+        mainAncestorMoves = [...mainAncestorMoves, ...mainMoves];
+      }
+
+      // Root-level non-mainLine children (alternatives at the very start).
+      (treeData.children || []).filter(c => !c.isMainLine).forEach(varChild => {
+        const edgeMove = varChild.edgeLabel ? varChild.edgeLabel.move : null;
+        const ancestorForChild = _ancestorMovesForChild([], edgeMove);
+        walkVariation(varChild, ancestorForChild, []);
+      });
+
+      return rows;
+    }
+
+    // Format an eval dict to a display string.
+    function _formatEval(evalObj) {
+      if (!evalObj) return '';
+      if (evalObj.mate !== undefined) {
+        const m = evalObj.mate;
+        return m > 0 ? `#${m}` : `#${m}`;
+      }
+      const cp = evalObj.cp;
+      const pawns = (cp / 100).toFixed(2);
+      return cp >= 0 ? `+${pawns}` : `${pawns}`;
+    }
+
+    // Determine row color class from eval.
+    // positive = good for white; negative = good for black.
+    function _evalRowClass(evalObj) {
+      if (!evalObj) return '';
+      let positive; // true = white advantage
+      let isMate = false;
+      if (evalObj.mate !== undefined) {
+        positive = evalObj.mate > 0;
+        isMate = true;
+      } else if (evalObj.cp !== undefined) {
+        if (evalObj.cp === 0) return '';
+        positive = evalObj.cp > 0;
+      } else {
+        return '';
+      }
+
+      // forBlack: green = good for black = NOT positive
+      const isGood = forBlack ? !positive : positive;
+      const base = isGood ? 'var-summary-row-green' : 'var-summary-row-red';
+      return isMate ? base + '-strong' : base;
+    }
+
+    // Build the moves HTML for the summary table (no comments, with hover if enabled).
+    function _summaryMovesHTML(fullMoves, mergedHoverFens) {
+      let html = '';
+      fullMoves.forEach((m, i) => {
+        const showNum = m.num.endsWith('.') || i === 0;
+        if (showNum) html += `<span class="vs-move-num">${esc(m.num)}</span> `;
+        const nodeId = (hoverEnabled && m.fen) ? findNodeIdForFen(mergedHoverFens, m.fen) : null;
+        const dataAttr = nodeId ? ` data-nodeid="${nodeId}"` : '';
+        if (m.nagClass) {
+          html += `<span class="${m.nagClass}"${dataAttr}>${esc(m.san)}${m.nag ? esc(m.nag) : ''}</span> `;
+        } else {
+          html += `<span${dataAttr}>${esc(m.san)}${m.nag ? esc(m.nag) : ''}</span> `;
+        }
+      });
+      return html;
+    }
+
+    // Stored rows for navigation from summary buttons.
+    let _summaryRows = [];
+
+    // Render the variation summary table.
+    function renderSummary() {
+      const container = document.getElementById('summary-container');
+      if (!container || !varSummaryMode) return;
+
+      _summaryRows = collectVariationRows(varSummaryMode);
+      if (!_summaryRows.length) {
+        container.innerHTML = '<p style="padding:1rem;color:var(--text-muted)">No variations found.</p>';
+        return;
+      }
+
+      let html = '<table class="var-summary-table"><thead><tr>';
+      html += '<th>#</th><th>Comment</th><th>Moves</th><th>Eval</th>';
+      html += '</tr></thead><tbody>';
+
+      _summaryRows.forEach(({ fullMoves, segment, segmentPath, isMainLineLast }, idx) => {
+        const moves = fullMoves;
+        const lastMove = moves[moves.length - 1] || null;
+
+        // Comment: last move's comment, then walk back to find the last commented move.
+        let comment = null;
+        if (lastMove && lastMove.comment) {
+          comment = lastMove.comment;
+        } else {
+          for (let i = moves.length - 1; i >= 0; i--) {
+            if (moves[i].comment) { comment = moves[i].comment; break; }
+          }
+        }
+
+        // Eval: from last move.
+        const evalObj = lastMove ? (lastMove.eval || null) : null;
+        const evalStr = _formatEval(evalObj);
+        const rowColorClass = _evalRowClass(evalObj);
+        const rowTypeClass = isMainLineLast ? 'var-summary-mainline-row' : 'var-summary-var-row';
+
+        // Merged hover fens from all segments in path.
+        const mergedHoverFens = hoverEnabled ? _mergeHoverFens(segmentPath) : {};
+
+        html += `<tr class="${rowTypeClass}${rowColorClass ? ' ' + rowColorClass : ''}">`;
+        html += `<td class="vs-count-cell">`;
+        html += `<span class="vs-count-num">${idx + 1}</span>`;
+        html += `<button class="vs-nav-btn" data-row="${idx}" data-target="tree" title="Open in tree view">🌳</button>`;
+        html += `<button class="vs-nav-btn" data-row="${idx}" data-target="deck" title="Open in deck view">📇</button>`;
+        html += `</td>`;
+        html += `<td class="vs-comment">${comment ? renderMarkdown(comment) : ''}</td>`;
+        html += `<td class="vs-moves">${_summaryMovesHTML(moves, mergedHoverFens)}</td>`;
+        html += `<td class="vs-eval">${evalStr ? esc(evalStr) : ''}</td>`;
+        html += '</tr>';
+      });
+
+      html += '</tbody></table>';
+      container.innerHTML = html;
+
+      // Attach navigation button listeners.
+      container.querySelectorAll('.vs-nav-btn').forEach(btn => {
+        btn.addEventListener('click', e => {
+          e.stopPropagation();
+          const rowIdx = parseInt(btn.dataset.row);
+          const target = btn.dataset.target;
+          const row = _summaryRows[rowIdx];
+          if (!row) return;
+
+          if (target === 'tree') {
+            animateSwitch('tree', 'view-exit', { focusNodeData: row.segment });
+          } else {
+            const stack = buildDeckStackForNode(row.segment);
+            if (stack) {
+              deckState.stack = stack;
+              animateSwitch('deck', 'view-exit-zoom', { skipInit: true });
+            } else {
+              // Fallback: open deck from start
+              animateSwitch('deck', 'view-exit');
+            }
+          }
+        });
+      });
+    }
 
     // -----------------------------------------------------------------------
     // Initial render

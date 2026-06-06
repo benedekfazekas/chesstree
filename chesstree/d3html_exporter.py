@@ -47,6 +47,7 @@ def export_d3html(
     template_path: Optional[pathlib.Path] = None,
     hover: bool = False,
     highlight_last_move: bool = True,
+    var_summary_mode: Optional[str] = None,
 ) -> tuple[str, dict[str, str]]:
     """Export a chess game to an interactive D3 HTML string.
 
@@ -58,6 +59,9 @@ def export_d3html(
     contain all four required placeholders:
     ``{{CHESSTREE_TITLE}}``, ``{{CHESSTREE_TREE_DATA}}``,
     ``{{CHESSTREE_IMAGES}}``, and ``{{CHESSTREE_HOVER_DATA}}``.
+
+    ``var_summary_mode`` controls the variation summary view: ``"leaves"`` for
+    leaf lines only, ``"all"`` for every variation node, or ``None`` to disable.
     """
     tree_dict, images, hover_images = export_d3tree(
         game,
@@ -65,6 +69,7 @@ def export_d3html(
         board_img_for_black=board_img_for_black,
         hover=hover,
         highlight_last_move=highlight_last_move,
+        var_summary_mode=var_summary_mode,
     )
 
     if template_path is not None:

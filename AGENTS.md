@@ -31,6 +31,11 @@ There is no separate lint or build step. All tests must pass before committing.
 
 ## Workflow conventions
 
+### Ask when unsure
+If you are unsure about a requirement, an approach, or whether a design decision is correct,
+**always ask the user a clarifying question before implementing**. Do not guess and implement
+the wrong thing — it wastes iterations and causes unnecessary rollbacks.
+
 ### Always run tests after changes
 Run `python -m pytest tests/ -q` after every code change. All tests must pass before proceeding.
 Never commit or hand off with a failing test suite.
@@ -129,6 +134,14 @@ The dict is empty when `image_modes` is `frozenset(["none"])` or `frozenset()`.
 ### `export_dothtml` return type
 Same tuple shape. The caller (CLI or scripts) writes SVG files to the output directory.
 
+### `export_d3tree` return type
+Returns `tuple[dict, dict[str, str], dict[str, str]]` — the tree dict, a filename→SVG-content
+dict for board images, and a nodeId→SVG-content dict for hover images (empty unless `hover=True`).
+
+### `export_d3html` return type
+Returns `tuple[str, dict[str, str]]` — the HTML string and the board-image filename→SVG dict.
+The caller writes SVG files alongside the HTML output file.
+
 ### SVG writing convention
 SVGs are written alongside the output file (`.dot` or `.html`) when output is to a **file**.
 When output is **stdout** (`output_file.name == "<stdout>"`), image references are included
@@ -148,6 +161,86 @@ The `variations` mode places one image at the **last move of each segment** (run
 branch points). At a branch point the image goes on the branching move (main-line choice at the
 fork), not the branch position itself. See `json_exporter._collect_image_fens_recursive` and
 `dot_exporter._DotBuilder._block_needs_image` for the reference implementations.
+
+---
+
+## d3tree exporter details
+
+### d3tree JSON structure
+The root dict has: `type: "root"`, `title`, `headers`, `gameComment`, `varSummaryMode`,
+`forBlack`, `children`.
+
+Each segment dict has: `type: "segment"`, `isVariation` (bool), `isMainLine` (bool),
+`edgeLabel` (or `null`), `moves` (list), `hoverFens` (dict), `children` (list of segments).
+
+Each move dict has: `num` (e.g. `"7."` for white, `"7\u2026"` for black), `san`, `nag`,
+`nagClass`, `fen`, `comment` (stripped of `[%...]`), `eval` (or `null`), `image` (or `null`).
+
+The `edgeLabel` dict (on variation segments) has: `move` (e.g. `"7. Nc3"` or `"10\u2026 Ng4"`),
+`nagClass`, `startingComment` (list of wrapped lines or `null`), `comment` (same).
+
+### Main-line segment layout
+`_collect_main_segments_flat()` produces a **flat list** of main-line segments as direct children
+of root — they are siblings, not chained. Variation children are attached to the specific
+main-line segment where the branch occurs.
+
+### Branching move invariant
+**When a segment has variation children, its last move is always the branching move** (the
+mainline choice at that fork). Variation children are alternatives to this last move — they do
+NOT include it. Sub-variations within a variation segment follow the same rule.
+
+This invariant is essential for reconstructing full move paths: the ancestor moves for any
+variation child = `parentSegment.moves[:-1]` plus ancestor moves inherited from above.
+
+### Eval field on moves
+`move.eval` is parsed from `[%eval ...]` in the raw PGN comment using `chess.pgn.EVAL_REGEX`.
+- `{"cp": int}` — centipawns, white-perspective (positive = white advantage)
+- `{"mate": int}` — positive = white mates in N, negative = black mates in abs(N)
+- Optional `"depth"` key on either form
+- `null` when no eval annotation is present
+- The `comment` field is always stripped of `[%...]` annotations; `eval` captures the raw value.
+
+---
+
+## d3html template
+
+### Views
+The d3html output has three views toggled by buttons in the header:
+- **Tree** (🌳) — D3 hierarchy SVG with pan/zoom/drag
+- **Deck** (📇) — card-by-card navigation through the game tree
+- **Summary** (📊) — variation summary table; only shown when `varSummaryMode` is set
+
+View transitions use `animateSwitch(targetView, exitClass, options)`. The `currentView` state
+variable tracks which view is active (`'tree'`, `'deck'`, or `'summary'`).
+
+### Placeholders (all four are required)
+
+| Placeholder | Content |
+|-------------|---------|
+| `{{CHESSTREE_TITLE}}` | Game title, e.g. "White vs Black at 2024.01.01" |
+| `{{CHESSTREE_TREE_DATA}}` | JSON tree dict — embedded inside a JS backtick template literal |
+| `{{CHESSTREE_IMAGES}}` | JS comment listing SVG filenames (informational only) |
+| `{{CHESSTREE_HOVER_DATA}}` | `const hoverEnabled = …; const hoverImages = …;` |
+
+### Security: JS template literal escaping
+The tree JSON is embedded as `JSON.parse(\`{{CHESSTREE_TREE_DATA}}\`)`. Before substitution
+`_escape_js_template_literal()` escapes `\` → `\\`, `` ` `` → `` \` ``, and `${` → `\${`.
+
+This same function is shared with the dothtml exporter (`dothtml_exporter._escape_js_template_literal`).
+
+Custom templates must contain all four placeholders or `export_d3html` raises `ValueError`.
+
+### Passing configuration via treeData
+Feature flags that the template JS needs (`varSummaryMode`, `forBlack`) are embedded directly
+in the root dict of the tree JSON rather than as separate placeholders. Access them in JS as
+`treeData.varSummaryMode` and `treeData.forBlack`.
+
+### Variation summary JS
+`collectVariationRows(mode)` walks the treeData tree and returns rows for the summary table.
+The full move path for each variation is reconstructed using `_ancestorMovesForChild()`, which
+parses the child's `edgeLabel.move` to determine the split point in the parent's moves array.
+`_summaryRows` module-level array stores the last-rendered rows so navigation button handlers
+can reference segment data by index.
 
 ---
 
@@ -223,7 +316,9 @@ listing the missing ones.
 ### Helpers
 - `_dot(path, **kwargs)` in `TestDotFunctional` returns just the DOT string (unpacks the tuple)
 - `_dot_and_images(path, **kwargs)` returns the full tuple
-- Use `_load(path)` to read a `chess.pgn.Game` from a sample PGN path
+- `_load(path)` reads a `chess.pgn.Game` from a sample PGN path (used across test files)
+- `_load_pgn(pgn_str)` in `test_d3tree_exporter.py` reads a game from an inline PGN string
+- `_all_segments(node)` in `test_d3tree_exporter.py` recursively collects all segment dicts from a tree
 
 ### Adding tests for new output behaviour
 When changing exporter output (new rows, changed formatting), always update or add unit tests
