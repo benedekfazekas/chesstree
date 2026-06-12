@@ -165,10 +165,14 @@ class _D3TreeBuilder:
         """
         segments: list[dict] = []
         current_start: Optional[chess.pgn.ChildNode] = start
+        # Alternatives from the previous segment's branching_move that branch
+        # from the start of the next segment (carried forward each iteration).
+        extra_alternatives: list[chess.pgn.ChildNode] = []
 
         while current_start is not None:
             block: list[chess.pgn.ChildNode] = []
-            branch_alternatives: list[chess.pgn.ChildNode] = []
+            branch_alternatives: list[chess.pgn.ChildNode] = list(extra_alternatives)
+            extra_alternatives = []
             next_continuation: Optional[chess.pgn.ChildNode] = None
             current: Optional[chess.pgn.ChildNode] = current_start
 
@@ -178,11 +182,12 @@ class _D3TreeBuilder:
                 if n_vars == 0:
                     break
                 elif n_vars > 1:
-                    branch_alternatives = list(current.variations[1:])
+                    branch_alternatives.extend(current.variations[1:])
                     branching_move = current.variations[0]
                     block.append(branching_move)
                     if branching_move.variations:
                         next_continuation = branching_move.variations[0]
+                        extra_alternatives = list(branching_move.variations[1:])
                     break
                 else:
                     current = current.variations[0]

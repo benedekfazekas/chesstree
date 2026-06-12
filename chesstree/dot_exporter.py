@@ -200,6 +200,10 @@ class _DotBuilder:
                 alternatives = list(node.variations[1:])
                 branching_move = node.variations[0]
                 current.append(branching_move)
+                # Capture alternatives that branch from AFTER the branching
+                # move (branching_move.variations[1:]) and attach them to the
+                # current segment so they are not silently dropped.
+                alternatives.extend(branching_move.variations[1:])
                 result.append((current, alternatives))
                 current = []
                 if branching_move.variations:

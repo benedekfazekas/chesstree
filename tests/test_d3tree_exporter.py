@@ -250,6 +250,42 @@ class TestVariations:
         assert images == {}
         assert hover == {}
 
+    def test_branching_move_alternatives_not_dropped(self):
+        # Regression: when a main-line branch point's chosen move (branching_move)
+        # itself has alternatives, those alternatives must appear in the tree.
+        # Structure: main=1.e4 c5 2.Nf3 d6 3.d4
+        #   - alt at c5: 2.d4 (instead of 2.Nf3)
+        #   - alt at Nf3: 2...Nf6 (instead of 2...d6)  ← was dropped
+        pgn = (
+            "[White \"A\"]\n[Black \"B\"]\n\n"
+            "1. e4 c5 2. Nf3 (2. d4) d6 (2... Nf6) 3. d4 *"
+        )
+        tree, _, _ = export_d3tree(_load_pgn(pgn))
+        all_segs = _all_segments(tree)
+        san_sets = [
+            {m["san"] for m in seg["moves"]} for seg in all_segs
+        ]
+        # 2...Nf6 alternative must appear in some segment
+        assert any("Nf6" in sans for sans in san_sets), (
+            "2...Nf6 variation was dropped from the tree"
+        )
+        # 2.d4 alternative must also appear
+        assert any("d4" in sans for sans in san_sets)
+        # Total unique paths: main + 2 alternatives = 3
+        def count_paths(node):
+            children = node.get("children", [])
+            if not children:
+                return 1
+            return 1 + sum(count_paths(c) for c in children)
+        main_segs = [c for c in tree["children"] if c.get("isMainLine")]
+        var_segs_root = [c for c in tree["children"] if not c.get("isMainLine")]
+        total = (
+            1
+            + sum(sum(count_paths(vc) for vc in s.get("children", [])) for s in main_segs)
+            + sum(count_paths(v) for v in var_segs_root)
+        )
+        assert total == 3, f"Expected 3 unique paths but got {total}"
+
 
 # ---------------------------------------------------------------------------
 # NAG classes
