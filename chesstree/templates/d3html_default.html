@@ -562,6 +562,33 @@
     }
     .vs-nav-btn:hover { background: var(--btn-hover); }
 
+    /* Eval distribution barchart in summary view */
+    .eval-barchart-wrapper { margin-bottom: 1.5rem; }
+    .eval-chart-svg { display: block; }
+    .eval-chart-svg .tick text { fill: currentColor; font-size: 11px; }
+    .eval-chart-svg .domain, .eval-chart-svg .tick line { stroke: currentColor; opacity: 0.3; }
+    /* Summary page title */
+    .summary-page-title {
+      display: flex;
+      align-items: baseline;
+      gap: 0.6rem;
+      margin-bottom: 1rem;
+      flex-wrap: wrap;
+    }
+    .summary-title-label {
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--text);
+    }
+    .summary-title-game {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+    }
+    .summary-title-count {
+      font-size: 0.78rem;
+      color: var(--text-faint);
+    }
+
     /* View-switch animations */
     #tree-container, #deck-container, #summary-container {
       transition: opacity 0.28s ease, transform 0.28s ease;
@@ -2183,6 +2210,149 @@
       return html;
     }
 
+    // Eval distribution barchart for summary view.
+    const _EVAL_CATEGORIES = [
+      { key: 'winning',    label: 'Winning',               range: '(+4.0 / mate)', color: '#22a022' },
+      { key: 'decisive+',  label: 'Decisive advantage',    range: '(+2.5\u20134.0)',    color: '#38b838' },
+      { key: 'better',     label: 'Better',                range: '(+1.2\u20132.5)',    color: '#66cc66' },
+      { key: 'slightedge', label: 'Slight edge',           range: '(+0.5\u20131.2)',    color: '#99dd99' },
+      { key: 'equal',      label: 'Equal',                 range: '(\u00b10.5)',        color: '#999999' },
+      { key: 'slightdis',  label: 'Slight disadvantage',   range: '(\u22120.5\u2013\u22121.2)',  color: '#e8a0a0' },
+      { key: 'worse',      label: 'Worse',                 range: '(\u22121.2\u2013\u22122.5)',  color: '#dd6666' },
+      { key: 'decisive-',  label: 'Decisive disadvantage', range: '(\u22122.5\u2013\u22124.0)', color: '#cc3333' },
+      { key: 'losing',     label: 'Losing',                range: '(\u22124.0 / mate)', color: '#bb1111' },
+    ];
+
+    function _evalPlayerScore(evalObj) {
+      if (!evalObj) return null;
+      if (evalObj.mate !== undefined) {
+        const s = evalObj.mate > 0 ? Infinity : -Infinity;
+        return forBlack ? -s : s;
+      }
+      if (evalObj.cp !== undefined) {
+        const s = evalObj.cp / 100;
+        return forBlack ? -s : s;
+      }
+      return null;
+    }
+
+    function _evalCategoryKey(evalObj) {
+      const score = _evalPlayerScore(evalObj);
+      if (score === null) return null;
+      if (score >= 4.0)  return 'winning';
+      if (score >= 2.5)  return 'decisive+';
+      if (score >= 1.2)  return 'better';
+      if (score >= 0.5)  return 'slightedge';
+      if (score >= -0.5) return 'equal';
+      if (score >= -1.2) return 'slightdis';
+      if (score >= -2.5) return 'worse';
+      if (score >= -4.0) return 'decisive-';
+      return 'losing';
+    }
+
+    function _getLastComment(moves) {
+      for (let i = moves.length - 1; i >= 0; i--) {
+        if (moves[i].comment) return moves[i].comment;
+      }
+      return null;
+    }
+
+    function _evalCategoryOrder(row) {
+      const lastMove = row.fullMoves[row.fullMoves.length - 1] || null;
+      const evalObj = lastMove ? (lastMove.eval || null) : null;
+      const key = _evalCategoryKey(evalObj);
+      return key ? _EVAL_CATEGORIES.findIndex(c => c.key === key) : 99;
+    }
+
+    function _renderEvalBarchart(rows, container) {
+      const buckets = {};
+      _EVAL_CATEGORIES.forEach(c => { buckets[c.key] = []; });
+
+      rows.forEach(row => {
+        const lastMove = row.fullMoves[row.fullMoves.length - 1] || null;
+        const evalObj = lastMove ? (lastMove.eval || null) : null;
+        const catKey = _evalCategoryKey(evalObj);
+        if (catKey) buckets[catKey].push(row);
+      });
+
+      const activeCats = _EVAL_CATEGORIES.filter(c => buckets[c.key].length > 0);
+      if (activeCats.length === 0) return;
+
+      const wrapper = document.createElement('div');
+      wrapper.className = 'eval-barchart-wrapper';
+
+      const margin = { top: 8, right: 50, bottom: 28, left: 165 };
+      const innerW = 160;
+      const innerH = activeCats.length * 24;
+      const svgW = margin.left + innerW + margin.right;
+      const svgH = margin.top + innerH + margin.bottom;
+
+      const maxCount = d3.max(activeCats, c => buckets[c.key].length);
+
+      const yScale = d3.scaleBand()
+        .domain(activeCats.map(c => c.key))
+        .range([0, innerH])
+        .padding(0.25);
+
+      const xScale = d3.scaleLinear()
+        .domain([0, maxCount]).nice()
+        .range([0, innerW]);
+
+      const svg = d3.select(wrapper).append('svg')
+        .attr('width', svgW).attr('height', svgH).attr('class', 'eval-chart-svg');
+
+      const g = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`);
+
+      // Y axis — category labels, no tick marks or axis line
+      g.append('g')
+        .call(
+          d3.axisLeft(yScale)
+            .tickFormat(key => _EVAL_CATEGORIES.find(c => c.key === key)?.label || key)
+            .tickSize(0)
+        )
+        .call(ax => { ax.select('.domain').remove(); ax.selectAll('.tick text').attr('dx', '-6'); });
+
+      // X axis — integer counts
+      g.append('g')
+        .attr('transform', `translate(0,${innerH})`)
+        .call(
+          d3.axisBottom(xScale)
+            .ticks(Math.min(maxCount, 5))
+            .tickFormat(d3.format('d'))
+        );
+
+      // Bars
+      g.selectAll('.eval-bar')
+        .data(activeCats)
+        .join('rect')
+        .attr('class', 'eval-bar')
+        .attr('x', 0)
+        .attr('y', d => yScale(d.key))
+        .attr('width', d => Math.max(xScale(buckets[d.key].length), 0))
+        .attr('height', yScale.bandwidth())
+        .attr('fill', d => d.color)
+        .attr('rx', 2)
+        .append('title')
+        .text(d => `${d.label} ${d.range}: ${buckets[d.key].length}`);
+
+      // Count labels at end of each bar
+      g.selectAll('.eval-count')
+        .data(activeCats)
+        .join('text')
+        .attr('class', 'eval-count')
+        .attr('x', d => xScale(buckets[d.key].length) + 5)
+        .attr('y', d => yScale(d.key) + yScale.bandwidth() / 2)
+        .attr('dy', '0.35em')
+        .attr('font-size', '11px')
+        .attr('fill', 'currentColor')
+        .attr('opacity', 0.65)
+        .text(d => buckets[d.key].length);
+
+      // Insert after title div, before the table
+      const table = container.querySelector('.var-summary-table');
+      container.insertBefore(wrapper, table);
+    }
+
     // Stored rows for navigation from summary buttons.
     let _summaryRows = [];
 
@@ -2197,7 +2367,16 @@
         return;
       }
 
-      let html = '<table class="var-summary-table"><thead><tr>';
+      // Sort best eval first; no-eval rows at end.
+      _summaryRows.sort((a, b) => _evalCategoryOrder(a) - _evalCategoryOrder(b));
+
+      const n = _summaryRows.length;
+      let html = `<div class="summary-page-title">`;
+      html += `<span class="summary-title-label">Variation Summary</span>`;
+      html += `<span class="summary-title-game">${esc(treeData.title || '')}</span>`;
+      html += `<span class="summary-title-count">${n} line${n !== 1 ? 's' : ''}</span>`;
+      html += `</div>`;
+      html += '<table class="var-summary-table"><thead><tr>';
       html += '<th>#</th><th>Comment</th><th>Moves</th><th>Eval</th>';
       html += '</tr></thead><tbody>';
 
@@ -2215,9 +2394,11 @@
           }
         }
 
-        // Eval: from last move.
+        // Eval: from last move — show category label, numeric value as tooltip.
         const evalObj = lastMove ? (lastMove.eval || null) : null;
         const evalStr = _formatEval(evalObj);
+        const catKey = _evalCategoryKey(evalObj);
+        const catLabel = catKey ? (_EVAL_CATEGORIES.find(c => c.key === catKey)?.label || '') : '';
         const rowBg = _evalRowBg(evalObj);
         const rowTypeClass = isMainLineLast ? 'var-summary-mainline-row' : 'var-summary-var-row';
 
@@ -2232,14 +2413,16 @@
         html += `</td>`;
         html += `<td class="vs-comment">${comment ? renderMarkdown(comment) : ''}</td>`;
         html += `<td class="vs-moves">${_summaryMovesHTML(moves, mergedHoverFens)}</td>`;
-        html += `<td class="vs-eval">${evalStr ? esc(evalStr) : ''}</td>`;
+        html += `<td class="vs-eval"${evalStr ? ` title="${esc(evalStr)}"` : ''}>${esc(catLabel)}</td>`;
         html += '</tr>';
       });
 
       html += '</tbody></table>';
       container.innerHTML = html;
 
-      // Attach navigation button listeners.
+      _renderEvalBarchart(_summaryRows, container);
+
+      // Attach navigation button listeners (covers both table and barchart buttons).
       container.querySelectorAll('.vs-nav-btn').forEach(btn => {
         btn.addEventListener('click', e => {
           e.stopPropagation();
