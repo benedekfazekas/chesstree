@@ -482,6 +482,18 @@
       color: var(--comment-color);
       margin-top: 2px;
     }
+    .deck-var-more {
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+    .deck-var-more-move {
+      display: inline-block;
+      border-radius: 3px;
+      padding: 1px 5px;
+      margin: 1px 2px;
+      font-weight: 600;
+    }
 
     /* Variation summary view */
     #summary-container {
@@ -512,14 +524,10 @@
       padding: 6px 10px;
       vertical-align: top;
       border-bottom: 1px solid var(--chrome-border);
+      background: var(--row-bg, transparent);
     }
     .var-summary-table tr:last-child td { border-bottom: none; }
     .var-summary-table tr:hover td { filter: brightness(1.12); }
-
-    .var-summary-row-green td { background: rgba(60, 160, 60, 0.22); }
-    .var-summary-row-red td { background: rgba(200, 60, 60, 0.22); }
-    .var-summary-row-green-strong td { background: rgba(60, 220, 60, 0.35); }
-    .var-summary-row-red-strong td { background: rgba(220, 60, 60, 0.35); }
 
     .var-summary-mainline-row td { border-left: 3px solid var(--link-main-stroke); }
     .var-summary-var-row td { border-left: 3px solid var(--link-var-stroke); }
@@ -1015,7 +1023,10 @@
       const countBadge = collapsedCount > 0
         ? ` <span class="collapsed-count">▶ ${collapsedCount} hidden</span>`
         : "";
-      return `<div class="node-header"><span>${lineType}: ${range}</span>${countBadge}</div><hr/>`;
+      const lastEval = moves[moves.length - 1]?.eval || null;
+      const headerBg = _evalRowBg(lastEval);
+      const headerStyle = headerBg ? ` style="background:${headerBg};border-radius:3px;padding:2px 4px;margin:-2px -4px"` : "";
+      return `<div class="node-header"${headerStyle}><span>${lineType}: ${range}</span>${countBadge}</div><hr/>`;
     }
 
     // Return { collapsed, hiddenCount } for a data node
@@ -1596,17 +1607,31 @@
         variationsHTML += '<div class="deck-variations-header">Variations</div>';
         variations.forEach((v, i) => {
           const edge = v.edgeLabel;
+          const vMoves = v.moves || [];
+          const vLastEval = vMoves.length ? (vMoves[vMoves.length - 1]?.eval || null) : null;
+          const vBg = _evalRowBg(vLastEval);
           let btnContent = '';
           if (edge) {
             if (edge.startingComment) {
               btnContent += `<div class="deck-var-comment">${esc(edge.startingComment.join(' '))}</div>`;
             }
-            btnContent += `<span class="deck-var-move${edge.nagClass ? ' ' + edge.nagClass : ''}">${esc(edge.move)}</span>`;
+            const moveStyle = vBg ? ` style="background:${vBg};border-radius:3px;padding:1px 5px"` : '';
+            btnContent += `<span class="deck-var-move${edge.nagClass ? ' ' + edge.nagClass : ''}"${moveStyle}>${esc(edge.move)}</span>`;
             if (edge.comment) {
               btnContent += `<div class="deck-var-comment">${esc(edge.comment.join(' '))}</div>`;
             }
           } else {
             btnContent = `Variation ${i + 1}`;
+          }
+          const subtreeEntries = _subtreeEvalEntries(v);
+          if (subtreeEntries.length) {
+            btnContent += '<div class="deck-var-more">more variations in this line:';
+            subtreeEntries.forEach(({ move, nagClass, evalObj }) => {
+              const bg = _evalRowBg(evalObj);
+              const style = bg ? ` style="background:${bg}"` : '';
+              btnContent += `<span class="deck-var-more-move${nagClass ? ' ' + nagClass : ''}"${style}>${esc(move)}</span>`;
+            });
+            btnContent += '</div>';
           }
           variationsHTML += `<button class="deck-var-btn" data-var-index="${i}">${btnContent}</button>`;
         });
@@ -2101,26 +2126,44 @@
       return cp >= 0 ? `+${pawns}` : `${pawns}`;
     }
 
-    // Determine row color class from eval.
-    // positive = good for white; negative = good for black.
-    function _evalRowClass(evalObj) {
+    // Determine row background color from eval (continuous gradient).
+    // positive cp/mate = white advantage; alpha scales with magnitude.
+    function _evalRowBg(evalObj) {
       if (!evalObj) return '';
+      let t; // 0..1 intensity
       let positive; // true = white advantage
-      let isMate = false;
       if (evalObj.mate !== undefined) {
         positive = evalObj.mate > 0;
-        isMate = true;
+        t = 1;
       } else if (evalObj.cp !== undefined) {
         if (evalObj.cp === 0) return '';
         positive = evalObj.cp > 0;
+        t = Math.min(Math.abs(evalObj.cp) / 300, 1);
       } else {
         return '';
       }
 
       // forBlack: green = good for black = NOT positive
       const isGood = forBlack ? !positive : positive;
-      const base = isGood ? 'var-summary-row-green' : 'var-summary-row-red';
-      return isMate ? base + '-strong' : base;
+      const alpha = 0.08 + t * 0.47;
+      return isGood
+        ? `rgba(60,160,60,${alpha.toFixed(3)})`
+        : `rgba(200,60,60,${alpha.toFixed(3)})`;
+    }
+
+    // Recursively collect { move, nagClass, evalObj } for all descendant segments
+    // that have both an edgeLabel (branching move) and an eval on their last move.
+    function _subtreeEvalEntries(seg) {
+      const result = [];
+      (seg.children || []).forEach(child => {
+        const moves = child.moves || [];
+        const lastEval = moves.length ? (moves[moves.length - 1]?.eval || null) : null;
+        if (child.edgeLabel) {
+          result.push({ move: child.edgeLabel.move, nagClass: child.edgeLabel.nagClass || null, evalObj: lastEval });
+        }
+        result.push(..._subtreeEvalEntries(child));
+      });
+      return result;
     }
 
     // Build the moves HTML for the summary table (no comments, with hover if enabled).
@@ -2175,13 +2218,13 @@
         // Eval: from last move.
         const evalObj = lastMove ? (lastMove.eval || null) : null;
         const evalStr = _formatEval(evalObj);
-        const rowColorClass = _evalRowClass(evalObj);
+        const rowBg = _evalRowBg(evalObj);
         const rowTypeClass = isMainLineLast ? 'var-summary-mainline-row' : 'var-summary-var-row';
 
         // Merged hover fens from all segments in path.
         const mergedHoverFens = hoverEnabled ? _mergeHoverFens(segmentPath) : {};
 
-        html += `<tr class="${rowTypeClass}${rowColorClass ? ' ' + rowColorClass : ''}">`;
+        html += `<tr class="${rowTypeClass}"${rowBg ? ` style="--row-bg:${rowBg}"` : ''}>`;
         html += `<td class="vs-count-cell">`;
         html += `<span class="vs-count-num">${idx + 1}</span>`;
         html += `<button class="vs-nav-btn" data-row="${idx}" data-target="tree" title="Open in tree view">🌳</button>`;
