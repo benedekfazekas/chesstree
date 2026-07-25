@@ -88,9 +88,21 @@ owned logic.
 
 This section is the source of truth for how `opening_end` should be computed. The acquisition sections below should refer to this logic rather than to Lichess `division.middle`.
 
+> **Status: LANDED.** The local divider is implemented in `chesstree/opening_divider.py`
+> (`opening_end_ply`, `boards_from_game`, `annotate_opening_end`) as a faithful port of
+> `scalachess Divider.scala` (opening/middlegame boundary only). Parity is verified against the
+> 336-game Lichess corpus (`lisperer-games-black.json`): computed `opening_end_ply` matches
+> `division.middle` exactly for every standard game, including the 8 games with no middlegame
+> (both return `None`). See `tests/test_opening_divider.py`. The POC
+> `scripts/merge_openings.py` now computes the cutoff via this module (no longer reads
+> `division.middle`; `division=true` dropped from the Lichess request), and the `chesstree` CLI
+> exposes it via the opt-in `--annotate-opening-end` flag (with a new `pgn → pgn` passthrough).
+> Refer to `chesstree/opening_divider.py` from every acquisition source below.
+
 ### Current state
 
-- there is no existing acquisition or opening-merge implementation in the repository yet; the current codebase is centered on single-game parsing/exporting through `python-chess`
+- the local divider (`chesstree/opening_divider.py`) is now the in-repo source of `opening_end`; the acquisition sources below reuse it
+- the current codebase is otherwise centered on single-game parsing/exporting through `python-chess`
 - `chesstree/json_exporter.py`, `chesstree/json_parser.py`, and `chesstree/dot_exporter.py` already show the patterns this feature will need: traversing PGN trees, deriving board/FEN states, attaching annotations/comments, and serializing normal PGN variations back out
 - the previous version of this plan deferred local-directory acquisition and routed non-Lichess sources through Lichess to obtain division metadata
 
@@ -180,7 +192,8 @@ This section is the source of truth for how `opening_end` should be computed. Th
 3. Define the normalized source-game contract, including source label and locally computed cutoff ply
 4. Implement the local opening-end divider plan described above, including unit tests for the
    divider heuristics (off-by-one mapping, `mixedness`, `backrankSparse`) before wiring to any
-   acquisition source
+   acquisition source — **done** (`chesstree/opening_divider.py`, `tests/test_opening_divider.py`;
+   wired into `scripts/merge_openings.py` and exposed on the CLI via `--annotate-opening-end`)
 5. Define the starting-position filter format and matching rules, supporting both move-prefix and FEN input with FEN as the priority
 6. Wire Lichess, Chess.com, and local-directory sources through the same parsed-game contract before merge
 7. Normalize each accepted source PGN into an opening slice ending at the locally computed cutoff node

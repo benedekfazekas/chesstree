@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Fetch Lichess games, filter by starting position, and merge opening slices into one PGN.
 
-POC: uses Lichess-provided division.middle as the opening cutoff and relies on
+POC: uses chesstree.opening_divider to compute the opening cutoff locally and relies on
 inline [%eval] annotations already embedded in the source PGN by Lichess.
 """
 from __future__ import annotations
@@ -17,8 +17,26 @@ from typing import Optional
 import chess
 import chess.pgn
 
+from chesstree import opening_divider
+
 
 _EVAL_RE = re.compile(r"\[%eval\s+([^\]]+)\]")
+
+
+def _boards_from_moves(moves_str: str) -> list[chess.Board] | None:
+    """Return [initial, after_move_1, ...] from a space-separated SAN string.
+
+    Returns None if any SAN is illegal (caller should skip the game).
+    """
+    board = chess.Board()
+    boards: list[chess.Board] = [board.copy()]
+    for san in moves_str.split():
+        try:
+            board.push_san(san)
+        except ValueError:
+            return None
+        boards.append(board.copy())
+    return boards
 
 
 def extract_eval(comment: str) -> Optional[str]:
@@ -92,11 +110,11 @@ def fetch_lichess_games(
 ) -> list[dict]:
     """Fetch games from the Lichess API as NDJSON and return as a list of dicts.
 
-    Requests: moves, evals, division, opening, pgnInJson, tags.
+    Requests: moves, evals, opening, pgnInJson, tags.
     When max_games is None the ``max`` parameter is omitted and Lichess returns all games.
     When color is None the ``color`` parameter is omitted and both sides are returned.
     """
-    params = "moves=true&evals=true&division=true&opening=true&pgnInJson=true&tags=true"
+    params = "moves=true&evals=true&opening=true&pgnInJson=true&tags=true"
     if max_games is not None:
         params += f"&max={max_games}"
     if color is not None:
@@ -303,22 +321,30 @@ def main() -> None:
         if game_dict.get("variant", "standard") != "standard":
             continue
 
-        division = game_dict.get("division") or {}
-        opening_end_ply: Optional[int] = division.get("middle")
+        moves_str = game_dict.get("moves", "").strip()
+        if not moves_str:
+            skipped_count += 1
+            print(
+                f"Warning: game {game_dict.get('id', '?')} has no moves, skipping",
+                file=sys.stderr,
+            )
+            continue
+
+        boards = _boards_from_moves(moves_str)
+        if boards is None:
+            skipped_count += 1
+            print(
+                f"Warning: game {game_dict.get('id', '?')} has illegal SAN in moves, skipping",
+                file=sys.stderr,
+            )
+            continue
+
+        opening_end_ply: Optional[int] = opening_divider.opening_end_ply(boards)
         if opening_end_ply is None:
-            # Game ended during the opening phase; use the full game as the slice.
-            moves_str = game_dict.get("moves", "").strip()
-            if not moves_str:
-                skipped_count += 1
-                print(
-                    f"Warning: game {game_dict.get('id', '?')} has no division.middle and no moves, skipping",
-                    file=sys.stderr,
-                )
-                continue
             opening_end_ply = len(moves_str.split())
             print(
-                f"Info: game {game_dict.get('id', '?')} has no division.middle "
-                f"(ended in opening), using full game ({opening_end_ply} plies)",
+                f"Info: game {game_dict.get('id', '?')} opening did not end "
+                f"(stayed in opening), using full game ({opening_end_ply} plies)",
                 file=sys.stderr,
             )
 

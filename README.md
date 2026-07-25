@@ -56,7 +56,7 @@ See the [Development environment](#development-environment) section below for fu
 ```
 usage: chesstree [-h] [--version] -i INPUT [-o OUTPUT] [-f {json,edn,pgn,dot,dothtml,d3html}]
                  [--input-format {pgn,json}] [-b] [--images MODE [MODE ...]]
-                 [--template FILE] [-a] [--no-move-highlight] [-c]
+                 [--template FILE] [-a] [--no-move-highlight] [-c] [--annotate-opening-end]
 
 options:
   -h, --help                                     show this help message and exit
@@ -81,6 +81,10 @@ options:
                                                  By default the from/to squares of the last move are
                                                  coloured on every board image (dot/dothtml/d3html).
   -c, --concise                                  Compact output, no pretty-printing (json/edn output only)
+  --annotate-opening-end                         Append [%opening_end] to the move where the opening ends,
+                                                 computed locally (a faithful port of Lichess/scalachess
+                                                 Divider). No-op if the opening never ends. Works with any
+                                                 game-bearing output (pgn, json/edn, dot/dothtml/d3html).
 ```
 
 The input format is auto-detected from the file extension (`.pgn` → PGN, `.json` → chesstree JSON). Use `--input-format` to override this when reading from stdin or a file with an unusual extension.
@@ -94,6 +98,7 @@ Supported conversions:
 | PGN   | `dot`             | GraphViz DOT   |
 | PGN   | `dothtml`         | Self-contained d3-graphviz HTML viewer |
 | PGN   | `d3html`          | Self-contained D3.js interactive tree viewer |
+| PGN   | `pgn`             | PGN (passthrough — useful with `--annotate-opening-end`) |
 | JSON  | `pgn`             | PGN            |
 | JSON  | `dot`             | GraphViz DOT   |
 | JSON  | `dothtml`         | Self-contained d3-graphviz HTML viewer |
@@ -194,6 +199,31 @@ Convert a chesstree JSON file back to PGN:
 ```bash
 chesstree -i game.json -f pgn -o game_restored.pgn
 ```
+
+### Annotating the end of the opening
+
+The `--annotate-opening-end` flag marks the move at which the game leaves the opening and enters
+the middlegame. The cutoff is computed locally — a faithful port of the Lichess/`scalachess`
+`Divider` heuristics (major/minor piece count, back-rank sparseness, and piece "mixedness") — so it
+needs no network access and no external metadata. The chosen move gets a `[%opening_end]` command
+annotation appended to its comment; if the game never leaves the opening the flag is a no-op.
+
+Because the annotation is applied to the parsed game before serialization, it works with any
+game-bearing output format and with either input format:
+
+```bash
+# PGN → PGN passthrough (the simplest way to just tag the opening end)
+chesstree -i game.pgn -f pgn --annotate-opening-end -o tagged.pgn
+
+# From chesstree JSON input
+chesstree -i game.json -f pgn --annotate-opening-end -o tagged.pgn
+
+# The annotation also flows through to json/edn and the graph/tree viewers
+chesstree -i game.pgn -f d3html --annotate-opening-end -o game.html
+```
+
+`[%opening_end]` is a PGN command annotation, so it is treated as metadata (not a human comment)
+and is stripped from rendered comment text in the DOT/dothtml/d3html viewers.
 
 Export a PGN game to a GraphViz DOT file for visualisation:
 

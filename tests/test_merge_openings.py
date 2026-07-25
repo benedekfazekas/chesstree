@@ -453,6 +453,96 @@ class TestFetchLichessGames:
 
         assert "color=" not in captured_url[0]
 
+    def test_division_not_requested_in_url(self) -> None:
+        """division=true must NOT appear in the Lichess API URL after local cutoff migration."""
+        mock_resp = MagicMock()
+        mock_resp.__enter__ = lambda s: s
+        mock_resp.__exit__ = MagicMock(return_value=False)
+        mock_resp.__iter__ = lambda s: iter([])
+
+        captured_url: list[str] = []
+
+        def fake_urlopen(req: urllib.request.Request) -> MagicMock:
+            captured_url.append(req.full_url)
+            return mock_resp
+
+        with patch("urllib.request.urlopen", side_effect=fake_urlopen):
+            merge_openings.fetch_lichess_games("testuser")
+
+        assert captured_url, "urlopen was not called"
+        assert "division" not in captured_url[0]
+
+
+
+# ── local cutoff path ─────────────────────────────────────────────────────────
+
+class TestLocalCutoffPath:
+    """Prove opening_end_ply is computed locally via chesstree.opening_divider."""
+
+    def test_boards_from_moves_includes_initial(self) -> None:
+        boards = merge_openings._boards_from_moves("e4 e5 Nf3")
+        assert boards is not None
+        assert len(boards) == 4  # initial + 3 moves
+        assert boards[0].fen() == chess.Board().fen()
+
+    def test_boards_from_moves_single_move(self) -> None:
+        boards = merge_openings._boards_from_moves("e4")
+        assert boards is not None
+        assert len(boards) == 2
+
+    def test_boards_from_moves_illegal_san_returns_none(self) -> None:
+        assert merge_openings._boards_from_moves("e4 Xe9") is None
+
+    def test_divider_returns_none_for_short_game(self) -> None:
+        """A very short game stays in the opening — divider returns None."""
+        from chesstree import opening_divider
+        boards = merge_openings._boards_from_moves("e4 e5 Nf3")
+        assert boards is not None
+        assert opening_divider.opening_end_ply(boards) is None
+
+    def test_main_uses_divider_not_division_middle(
+        self, capsys: pytest.CaptureFixture
+    ) -> None:
+        """main() uses the local divider cutoff; division.middle in the game dict is ignored.
+
+        The game dict has division.middle=1 (would cut after 1 ply under the old code).
+        The divider returns None for a 3-move game, so the fallback is full-length (3 plies).
+        The output PGN must contain all 3 moves (proving division.middle=1 was ignored).
+        """
+        moves = ["e4", "e5", "Nf3"]
+        pgn = _pgn_str(moves)
+        game_data = {
+            "id": "localtest",
+            "variant": "standard",
+            "moves": " ".join(moves),
+            "pgn": pgn,
+            "division": {"middle": 1},  # old code would cut here — must be ignored
+        }
+        initial_fen = chess.Board().fen()
+        with patch.object(merge_openings, "fetch_lichess_games", return_value=[game_data]):
+            with patch("sys.argv", ["merge_openings", "--username", "test", "--fen", initial_fen]):
+                merge_openings.main()
+        captured = capsys.readouterr()
+        # Divider returns None → fallback = 3 plies → all 3 moves in output
+        assert "Nf3" in captured.out
+        assert "[%opening_end]" in captured.out
+
+    def test_main_uses_divider_computed_cutoff_matches_expectation(
+        self, capsys: pytest.CaptureFixture
+    ) -> None:
+        """The local divider cutoff equals the expected ply for a known move sequence."""
+        from chesstree import opening_divider
+        # Use the lisperer sample from test fixtures — known divider output = 27
+        import pathlib
+        sample = pathlib.Path(__file__).parent / "sample_pgns" / "lisperer_vs_verenitach.pgn"
+        import chess.pgn as pgn_mod
+        with open(sample) as f:
+            game = pgn_mod.read_game(f)
+        assert game is not None
+        from chesstree.opening_divider import boards_from_game
+        boards = boards_from_game(game)
+        assert opening_divider.opening_end_ply(boards) == 27
+
 
 # ── cache helpers ─────────────────────────────────────────────────────────────
 

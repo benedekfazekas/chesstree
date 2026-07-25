@@ -10,7 +10,7 @@ import chess.pgn
 import pytest
 
 import chesstree.cli
-from chesstree.cli import pgn_to_json, json_to_pgn, _detect_input_format, game_to_d3html, parse_args
+from chesstree.cli import pgn_to_json, json_to_pgn, _detect_input_format, game_to_d3html, parse_args, pgn_to_pgn, _maybe_annotate_opening_end
 from chesstree.json_exporter import JsonExporter
 from chesstree.utils import CURRENT_SCHEMA_VERSION
 
@@ -289,3 +289,141 @@ class TestVersionOutput:
             parse_args()
         captured = capsys.readouterr()
         assert captured.out.strip() == f"chesstree 2026.2.dev0 (schema {CURRENT_SCHEMA_VERSION})"
+
+
+class TestAnnotateOpeningEndFlag:
+    """Tests for --annotate-opening-end flag and the pgn→pgn passthrough."""
+
+    def test_flag_default_false(self, monkeypatch):
+        monkeypatch.setattr(sys, "argv", ["chesstree", "-i", str(LISPERER)])
+        args = parse_args()
+        assert args.annotate_opening_end is False
+
+    def test_flag_true_when_set(self, monkeypatch):
+        monkeypatch.setattr(sys, "argv", ["chesstree", "-i", str(LISPERER), "--annotate-opening-end"])
+        args = parse_args()
+        assert args.annotate_opening_end is True
+
+    def test_maybe_annotate_noop_when_disabled(self):
+        game = chess.pgn.read_game(io.StringIO(SIMPLE_PGN))
+        assert game is not None
+        _maybe_annotate_opening_end(game, enabled=False)
+        node = game
+        while not node.is_end():
+            assert "[%opening_end]" not in node.comment
+            node = node.variations[0]
+
+    def test_maybe_annotate_noop_when_opening_never_ends(self):
+        """Short game: divider returns None → helper leaves game untouched."""
+        game = chess.pgn.read_game(io.StringIO(SIMPLE_PGN))
+        assert game is not None
+        _maybe_annotate_opening_end(game, enabled=True)
+        result = str(game)
+        assert "[%opening_end]" not in result
+
+    # ── pgn → pgn ─────────────────────────────────────────────────────────────
+
+    def test_pgn_to_pgn_annotates_at_correct_ply(self):
+        """lisperer_vs_verenitach.pgn → divider fires at ply 27."""
+        with open(LISPERER) as f:
+            pgn_text = f.read()
+        inp = _make_input(pgn_text, "lisperer.pgn")
+        output_f = _make_output()
+        pgn_to_pgn(inp, output_f, annotate_opening_end=True)
+        output_f.seek(0)
+        pgn_out = output_f.read()
+        assert "[%opening_end]" in pgn_out
+        game = chess.pgn.read_game(io.StringIO(pgn_out))
+        assert game is not None
+        node = game
+        for _ in range(27):
+            node = node.variations[0]
+        assert "[%opening_end]" in node.comment
+        assert "[%opening_end]" not in node.parent.comment  # type: ignore[union-attr]
+
+    def test_pgn_to_pgn_no_annotation_when_flag_off(self):
+        with open(LISPERER) as f:
+            pgn_text = f.read()
+        inp = _make_input(pgn_text, "lisperer.pgn")
+        output_f = _make_output()
+        pgn_to_pgn(inp, output_f, annotate_opening_end=False)
+        output_f.seek(0)
+        assert "[%opening_end]" not in output_f.read()
+
+    def test_pgn_to_pgn_noop_for_short_game(self):
+        """Short game: divider returns None → no annotation written."""
+        inp = _make_input(SIMPLE_PGN, "simple.pgn")
+        output_f = _make_output()
+        pgn_to_pgn(inp, output_f, annotate_opening_end=True)
+        output_f.seek(0)
+        assert "[%opening_end]" not in output_f.read()
+
+    def test_pgn_to_pgn_preserves_game_structure(self):
+        """Output is valid PGN that round-trips back to a parsed game."""
+        with open(LISPERER) as f:
+            pgn_text = f.read()
+        inp = _make_input(pgn_text, "lisperer.pgn")
+        output_f = _make_output()
+        pgn_to_pgn(inp, output_f, annotate_opening_end=True)
+        output_f.seek(0)
+        game = chess.pgn.read_game(output_f)
+        assert game is not None
+
+    def test_pgn_to_pgn_empty_pgn_exits(self):
+        output_f = _make_output()
+        with pytest.raises(SystemExit) as exc_info:
+            pgn_to_pgn(_make_input("", "empty.pgn"), output_f)
+        assert exc_info.value.code == 1
+
+    # ── json → pgn ────────────────────────────────────────────────────────────
+
+    def test_json_to_pgn_with_annotation(self):
+        """Annotation flows through json→pgn path."""
+        with open(LISPERER) as f:
+            pgn_text = f.read()
+        json_str = _pgn_to_json_str(pgn_text)
+        inp = _make_input(json_str, "lisperer.json")
+        output_f = _make_output()
+        json_to_pgn(inp, output_f, annotate_opening_end=True)
+        output_f.seek(0)
+        pgn_out = output_f.read()
+        assert "[%opening_end]" in pgn_out
+
+    def test_json_to_pgn_no_annotation_when_flag_off(self):
+        json_str = _pgn_to_json_str(SIMPLE_PGN)
+        inp = _make_input(json_str, "simple.json")
+        output_f = _make_output()
+        json_to_pgn(inp, output_f, annotate_opening_end=False)
+        output_f.seek(0)
+        assert "[%opening_end]" not in output_f.read()
+
+    # ── pgn → d3html ──────────────────────────────────────────────────────────
+
+    def test_pgn_to_d3html_with_annotation_produces_valid_html(self):
+        """Flag threads through game_to_d3html without error.
+
+        [%opening_end] is a command annotation; it is stripped from d3html rendered
+        text by has_real_comment, so we assert the output is valid HTML rather than
+        scanning for the literal string.
+        """
+        with open(LISPERER) as f:
+            pgn_text = f.read()
+        inp = _make_input(pgn_text, "lisperer.pgn")
+        output_f = _make_output()
+        game_to_d3html(inp, output_f, "pgn", images=["none"], annotate_opening_end=True)
+        output_f.seek(0)
+        html = output_f.read()
+        assert "<!DOCTYPE html>" in html
+        assert "</html>" in html
+
+    def test_pgn_to_d3html_annotation_applied_to_game_object(self):
+        """_maybe_annotate_opening_end annotates the game object at ply 27."""
+        import chess.pgn as pgn_mod
+        with open(LISPERER) as f:
+            game = pgn_mod.read_game(f)
+        assert game is not None
+        _maybe_annotate_opening_end(game, enabled=True)
+        node = game
+        for _ in range(27):
+            node = node.variations[0]
+        assert "[%opening_end]" in node.comment
