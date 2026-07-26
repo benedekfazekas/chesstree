@@ -40,6 +40,16 @@ the wrong thing — it wastes iterations and causes unnecessary rollbacks.
 Run `python -m pytest tests/ -q` after every code change. All tests must pass before proceeding.
 Never commit or hand off with a failing test suite.
 
+**Acceptance tests** (marked `@pytest.mark.acceptance`) require a local Stockfish binary and are
+**excluded from the default run and CI**.  Run them explicitly with:
+
+```bash
+pytest -m acceptance
+```
+
+They compare local Stockfish evals against the Lichess `analysis` corpus with sign-agreement
+tolerance — mismatches are expected to be rare but non-zero (engine version/depth/hardware differ).
+
 ### Regenerate HTML samples only when explicitly asked
 Only regenerate the sample HTML files in `/tmp/chesstree.samples/` when the user explicitly
 requests it, or when a change significantly alters the visual output (e.g. a new layout feature,
@@ -123,7 +133,8 @@ After the release, bump `pyproject.toml` to `YYYY.(N+1).dev0` (or `YYYY+1.1.dev0
 | `dothtml_exporter.py` | Wraps `export_dot`, substitutes into HTML template |
 | `d3tree_exporter.py` | `chess.pgn.Game` → D3 hierarchy JSON tree |
 | `d3html_exporter.py` | Wraps `export_d3tree`, substitutes into d3html template |
-| `utils.py` | Shared helpers: `has_real_comment()`, `_PGN_COMMAND_ANNOTATION_RE` |
+| `leaf_evaluator.py` | Pure core + engine provider for `[%eval ...]` annotation: scope selection (`TERMINAL`/`BRANCHES`/`ALL`), `format_eval`, FEN de-dup, `annotate_evals`, `make_engine_provider`/`EngineUnavailable` |
+| `utils.py` | Shared helpers: `has_real_comment()`, `_PGN_COMMAND_ANNOTATION_RE`, `normalize_fen()` (first 4 FEN fields; shared by `leaf_evaluator` and `merge_openings`) |
 | `templates/dothtml_default.html` | Default d3-graphviz viewer template |
 | `templates/d3html_default.html` | Default d3 hierarchy viewer template |
 
@@ -152,6 +163,34 @@ The PGN comment before the first move (`game.comment`) is stored in JSON/EDN out
 `headers["Comment"]`. In DOT/dothtml output it appears as an italic row in the root node label.
 In both cases `[%...]` annotations are stripped; a comment consisting only of annotations is
 silently omitted.
+
+### Eval annotation (`--annotate-eval`)
+
+`_maybe_annotate_evals_from_params(game, annotate_eval, eval_scope, engine, eval_depth, eval_time)`
+applies `leaf_evaluator.annotate_evals` before serialization in every conversion function
+(`pgn_to_json`, `json_to_pgn`, `pgn_to_pgn`, `game_to_dot`, `game_to_dothtml`, `game_to_d3html`).
+
+CLI flags:
+
+| Flag | Type | Default | Meaning |
+|------|------|---------|---------|
+| `--annotate-eval` | `store_true` | off | Enable engine evaluation annotation |
+| `--eval-scope {leaves,branch-points,all}` | str | `branch-points` | `leaves` = terminal nodes only; `branch-points` = leaves **plus** fork nodes (default); `all` = every node |
+| `--engine PATH` | str | `stockfish` | Path to or name of the UCI engine binary |
+| `--eval-depth INT` | int | None (uses `DEFAULT_DEPTH=20`) | Fixed search depth |
+| `--eval-time FLOAT` | float | None | Wall-clock seconds per position; **takes precedence over `--eval-depth`** when both are given |
+
+On `EngineUnavailable` (binary missing or spawn fails), a warning is printed to stderr and the conversion continues without annotation — it never crashes.
+
+The engine is opened once per invocation (via `leaf_evaluator.make_engine_provider`) and closed after all positions are evaluated. Positions are de-duplicated by normalized FEN so each unique board is evaluated at most once.
+
+### Merge-script eval source / fallback (`scripts/merge_openings.py`)
+
+- `apply_leaf_evals(merged_game, provider)` — annotates merged terminal leaves with engine evals; provider is shared across the run and positions are de-duped by normalized FEN.
+- **Prefer local, fall back to Lichess:** one `make_engine_provider` call at startup. On `EngineUnavailable`, a warning is logged once and the script falls back to Lichess-embedded `[%eval]` annotations for every leaf.
+- When the engine is available but returns `None` for a specific position (analyse error), that individual leaf falls back to the Lichess `[%eval]` for its source game.
+- The leaf-label format (`vs [Opponent](url): **eval**`) is unchanged; only the *source* of the eval string differs.
+- `normalize_fen` lives in `chesstree/utils.py` (not in `merge_openings.py`) and is imported from there by both the merge script and `leaf_evaluator.py`.
 
 ### Image modes
 Four modes, combinable: `none`, `all`, `variations` (default), `commented`.
@@ -312,6 +351,8 @@ listing the missing ones.
 | `test_cli.py` | CLI argument parsing and dispatch |
 | `test_functional.py` | End-to-end round-trips using real PGN samples |
 | `test_utils.py` | `has_real_comment()` and annotation-stripping logic |
+| `test_leaf_evaluator.py` | Pure core + engine provider: scope selection, `format_eval` round-trip, FEN de-dup, `overwrite`, `None` handling, `make_engine_provider` with stubbed/monkeypatched providers (no real Stockfish) |
+| `test_leaf_evaluator_acceptance.py` | Real-Stockfish acceptance tests (excluded from default run and CI; gate with `@pytest.mark.acceptance` + `skipif`); compare local evals against Lichess `analysis` corpus with sign-agreement tolerance |
 
 ### Helpers
 - `_dot(path, **kwargs)` in `TestDotFunctional` returns just the DOT string (unpacks the tuple)

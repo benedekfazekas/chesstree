@@ -239,7 +239,7 @@ class TestCreateSlice:
         assert label == "vs [Opponent](https://lichess.org/xyz999)"
 
     def test_label_format_with_eval(self) -> None:
-        """Label with eval: 'vs [Opponent](url): **0.43**'."""
+        """Label from create_slice is base only (no eval); eval added later by apply_leaf_evals."""
         game = _build_game(["e4", "e5"])
         game.end().comment = "[%eval 0.43]"
         exporter = chess.pgn.StringExporter(headers=True, variations=True, comments=True)
@@ -256,7 +256,7 @@ class TestCreateSlice:
         result = merge_openings.create_slice(gd, filter_ply=0, opening_end_ply=2, username="testuser")
         assert result is not None
         _, label = result
-        assert label == "vs [Kasparov](https://lichess.org/evalgame): **0.43**"
+        assert label == "vs [Kasparov](https://lichess.org/evalgame)"
 
     def test_label_url_contains_game_id(self) -> None:
         gd = _game_dict(["e4", "e5"], game_id="xyz999")
@@ -520,8 +520,13 @@ class TestLocalCutoffPath:
         }
         initial_fen = chess.Board().fen()
         with patch.object(merge_openings, "fetch_lichess_games", return_value=[game_data]):
-            with patch("sys.argv", ["merge_openings", "--username", "test", "--fen", initial_fen]):
-                merge_openings.main()
+            with patch.object(
+                merge_openings.leaf_evaluator,
+                "make_engine_provider",
+                side_effect=merge_openings.leaf_evaluator.EngineUnavailable("no engine in CI"),
+            ):
+                with patch("sys.argv", ["merge_openings", "--username", "test", "--fen", initial_fen]):
+                    merge_openings.main()
         captured = capsys.readouterr()
         # Divider returns None → fallback = 3 plies → all 3 moves in output
         assert "Nf3" in captured.out
@@ -542,6 +547,202 @@ class TestLocalCutoffPath:
         from chesstree.opening_divider import boards_from_game
         boards = boards_from_game(game)
         assert opening_divider.opening_end_ply(boards) == 27
+
+
+# ── apply_leaf_evals ──────────────────────────────────────────────────────────
+
+class TestApplyLeafEvals:
+    """Unit tests for apply_leaf_evals using stub providers — no real engine."""
+
+    def _merged_with_lichess_eval(self, eval_str: str = "0.43") -> chess.pgn.Game:
+        """Build a simple merged game whose leaf already has a Lichess [%eval]."""
+        sliced, label = _make_slice(["e4", "e5"], "vs [Opp](https://lichess.org/g1)")
+        sliced.end().comment = f"[%eval {eval_str}] [%opening_end]"
+        merged = merge_openings.merge_game_slices([(sliced, label)])
+        return merged
+
+    def test_local_eval_takes_precedence_over_lichess(self) -> None:
+        """Stub provider returns Cp(43); leaf label gets ': **0.43**' from local eval."""
+        from chess.engine import PovScore, Cp
+        merged = self._merged_with_lichess_eval("9.99")  # Lichess eval differs
+
+        stub_score = PovScore(Cp(43), chess.WHITE)
+        stub_provider = lambda board: stub_score
+
+        merge_openings.apply_leaf_evals(merged, stub_provider)
+
+        leaf_comment = merged.end().comment
+        assert ": **0.43**" in leaf_comment
+        assert "9.99" not in leaf_comment  # stale Lichess tag + value fully removed
+        # Machine-readable tag present and consistent with the displayed value.
+        assert "[%eval 0.43]" in leaf_comment
+        assert merge_openings.extract_eval(leaf_comment) == "0.43"
+
+    def test_fallback_to_lichess_when_provider_returns_none(self) -> None:
+        """Provider returns None; leaf falls back to Lichess [%eval]."""
+        merged = self._merged_with_lichess_eval("1.20")
+        none_provider = lambda board: None
+
+        merge_openings.apply_leaf_evals(merged, none_provider)
+
+        leaf_comment = merged.end().comment
+        assert ": **1.20**" in leaf_comment
+        assert "[%eval 1.20]" in leaf_comment
+
+    def test_no_eval_appended_when_both_unavailable(self) -> None:
+        """No provider, no Lichess eval → no ': **...**' suffix."""
+        sliced, label = _make_slice(["e4", "e5"], "vs [Opp](https://lichess.org/g1)")
+        sliced.end().comment = "[%opening_end]"  # no [%eval]
+        merged = merge_openings.merge_game_slices([(sliced, label)])
+
+        merge_openings.apply_leaf_evals(merged, None)
+
+        assert ": **" not in merged.end().comment
+
+    def test_provider_none_uses_lichess_fallback(self) -> None:
+        """provider=None means engine unavailable; Lichess [%eval] used for all leaves."""
+        merged = self._merged_with_lichess_eval("0.55")
+
+        merge_openings.apply_leaf_evals(merged, None)
+
+        assert ": **0.55**" in merged.end().comment
+
+    def test_dedup_provider_called_once_per_unique_fen(self) -> None:
+        """Two branches reaching the same position → provider called only once."""
+        from chess.engine import PovScore, Cp
+
+        call_count = [0]
+
+        def counting_provider(board: chess.Board) -> PovScore:
+            call_count[0] += 1
+            return PovScore(Cp(10), chess.WHITE)
+
+        # Two slices with identical move sequences → same leaf FEN.
+        s1 = _make_slice(["e4", "e5"], "vs [Opp1](https://lichess.org/g1)")
+        s2 = _make_slice(["e4", "e5"], "vs [Opp2](https://lichess.org/g2)")
+        merged = merge_openings.merge_game_slices([s1, s2])
+
+        # Merged tree has one unique leaf.
+        merge_openings.apply_leaf_evals(merged, counting_provider)
+
+        assert call_count[0] == 1
+
+    def test_diverging_leaves_each_get_eval(self) -> None:
+        """Different leaf positions → provider called once per unique leaf."""
+        from chess.engine import PovScore, Cp
+
+        call_count = [0]
+
+        def counting_provider(board: chess.Board) -> PovScore:
+            call_count[0] += 1
+            return PovScore(Cp(5), chess.WHITE)
+
+        s1 = _make_slice(["e4", "e5"], "vs [Opp1](https://lichess.org/g1)")
+        s2 = _make_slice(["e4", "c5"], "vs [Opp2](https://lichess.org/g2)")
+        merged = merge_openings.merge_game_slices([s1, s2])
+
+        merge_openings.apply_leaf_evals(merged, counting_provider)
+
+        assert call_count[0] == 2
+        # Both leaves should have the eval appended.
+        leaves = []
+        stack = list(merged.variations)
+        while stack:
+            node = stack.pop()
+            if not node.variations:
+                leaves.append(node)
+            else:
+                stack.extend(node.variations)
+        assert all(": **0.05**" in leaf.comment for leaf in leaves)
+
+    def test_mate_eval_formatted_correctly(self) -> None:
+        """Mate score is formatted as #n."""
+        from chess.engine import PovScore, Mate
+
+        merged = self._merged_with_lichess_eval("0.00")
+        stub_provider = lambda board: PovScore(Mate(3), chess.WHITE)
+
+        merge_openings.apply_leaf_evals(merged, stub_provider)
+
+        assert ": **#3**" in merged.end().comment
+        assert "[%eval #3]" in merged.end().comment
+
+    def test_local_eval_emits_machine_readable_tag_without_lichess(self) -> None:
+        """Regression: a leaf with NO Lichess [%eval] but a local engine eval must
+        still get a machine-readable [%eval ...] tag (not just markdown), so
+        chesstree colors it and includes it in the variation summary.
+
+        Mirrors the real 'unf2' game where Lichess had no eval.
+        """
+        from chess.engine import PovScore, Cp
+
+        sliced, label = _make_slice(["e4", "e5"], "vs [unf2](https://lichess.org/yiNT31TP)")
+        sliced.end().comment = "[%opening_end]"  # no [%eval] from Lichess
+        merged = merge_openings.merge_game_slices([(sliced, label)])
+
+        stub_provider = lambda board: PovScore(Cp(-425), chess.WHITE)
+        merge_openings.apply_leaf_evals(merged, stub_provider)
+
+        leaf_comment = merged.end().comment
+        assert ": **-4.25**" in leaf_comment          # human label
+        assert "[%eval -4.25]" in leaf_comment          # machine-readable tag
+        assert merge_openings.extract_eval(leaf_comment) == "-4.25"
+
+    def test_single_eval_tag_after_annotation(self) -> None:
+        """Exactly one [%eval ...] remains even when the source carried a stale one."""
+        from chess.engine import PovScore, Cp
+
+        merged = self._merged_with_lichess_eval("9.99")
+        stub_provider = lambda board: PovScore(Cp(43), chess.WHITE)
+        merge_openings.apply_leaf_evals(merged, stub_provider)
+
+        assert merged.end().comment.count("[%eval") == 1
+
+
+# ── engine-unavailable path in main() ─────────────────────────────────────────
+
+class TestEngineUnavailableInMain:
+    def test_engine_unavailable_logs_warning_and_uses_lichess(
+        self, capsys: pytest.CaptureFixture
+    ) -> None:
+        """EngineUnavailable → warning logged once; output still uses Lichess eval."""
+        game = _build_game(["e4", "e5"])
+        game.end().comment = "[%eval 0.77]"
+        exporter = chess.pgn.StringExporter(headers=True, variations=True, comments=True)
+        pgn = game.accept(exporter)
+        players = {"white": {"user": {"name": "testuser"}}, "black": {"user": {"name": "Opp"}}}
+        game_data = {
+            "id": "eng_unavail",
+            "variant": "standard",
+            "moves": "e4 e5",
+            "pgn": pgn,
+            "players": players,
+        }
+        initial_fen = chess.Board().fen()
+        with patch.object(merge_openings, "fetch_lichess_games", return_value=[game_data]):
+            with patch.object(
+                merge_openings.leaf_evaluator,
+                "make_engine_provider",
+                side_effect=merge_openings.leaf_evaluator.EngineUnavailable("binary missing"),
+            ):
+                with patch("sys.argv", ["merge_openings", "--username", "testuser", "--fen", initial_fen]):
+                    merge_openings.main()
+
+        captured = capsys.readouterr()
+        assert "engine unavailable" in captured.err.lower()
+        # Lichess fallback eval should appear in the PGN output.
+        assert "0.77" in captured.out
+
+
+# ── normalize_fen re-export ───────────────────────────────────────────────────
+
+class TestNormalizeFenReexport:
+    """merge_openings.normalize_fen must resolve (re-exported from chesstree.utils)."""
+
+    def test_reexport_identity(self) -> None:
+        from chesstree.utils import normalize_fen as utils_normalize
+        fen = "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1"
+        assert merge_openings.normalize_fen(fen) == utils_normalize(fen)
 
 
 # ── cache helpers ─────────────────────────────────────────────────────────────

@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Fetch Lichess games, filter by starting position, and merge opening slices into one PGN.
 
-POC: uses chesstree.opening_divider to compute the opening cutoff locally and relies on
-inline [%eval] annotations already embedded in the source PGN by Lichess.
+POC: uses chesstree.opening_divider to compute the opening cutoff locally.
+Leaf evals prefer a local engine (Stockfish); fall back to inline Lichess [%eval] annotations.
 """
 from __future__ import annotations
 
@@ -15,9 +15,11 @@ import urllib.request
 from typing import Optional
 
 import chess
+import chess.engine
 import chess.pgn
 
-from chesstree import opening_divider
+from chesstree import leaf_evaluator, opening_divider
+from chesstree.utils import normalize_fen
 
 
 _EVAL_RE = re.compile(r"\[%eval\s+([^\]]+)\]")
@@ -67,15 +69,6 @@ def get_opponent_name(game_dict: dict, username: str) -> str:
     if black_name.lower() == username.lower():
         return white_name
     return black_name
-
-
-def normalize_fen(fen: str) -> str:
-    """Return the first 4 FEN fields (board, turn, castling, en passant).
-
-    Drops halfmove clock and fullmove counter so that position comparison
-    ignores bookkeeping-only differences.
-    """
-    return " ".join(fen.split()[:4])
 
 
 def find_filter_ply(game_dict: dict, target_fen: str) -> Optional[int]:
@@ -211,10 +204,7 @@ def create_slice(
 
     opponent = get_opponent_name(game_dict, username)
     url = f"https://lichess.org/{game_id}"
-    eval_val = extract_eval(nodes[-1].comment) if nodes else None
     label = f"vs [{opponent}]({url})"
-    if eval_val is not None:
-        label += f": **{eval_val}**"
 
     return sliced, label
 
@@ -258,6 +248,64 @@ def merge_game_slices(slices: list[tuple[chess.pgn.Game, str]]) -> chess.pgn.Gam
     return merged
 
 
+def apply_leaf_evals(
+    merged: chess.pgn.Game,
+    provider: Optional[leaf_evaluator.EvalProvider],
+) -> None:
+    """Annotate each terminal leaf of the merged game tree with its evaluation.
+
+    For each unique (by normalized FEN) terminal leaf:
+
+    1. If *provider* is not ``None``, call it; on a non-``None`` ``PovScore``,
+       format via :func:`leaf_evaluator.format_eval`.
+    2. If the local eval is unavailable (provider is ``None`` or returned ``None``),
+       fall back to the Lichess ``[%eval ...]`` already embedded in the leaf comment.
+    3. When an eval string is found, the leaf comment gets BOTH:
+       - a machine-readable ``[%eval <value>]`` PGN command annotation, so
+         chesstree colors the node and includes it in the variation summary; and
+       - a human-readable ``: **<value>**`` markdown suffix on the source label.
+       Any pre-existing ``[%eval ...]`` (e.g. copied from the source PGN) is
+       replaced so the tag stays consistent with the displayed value.
+
+    Each unique position is evaluated at most once (dedup by normalized FEN).
+    """
+    # Collect all terminal leaves.
+    all_leaves: list[chess.pgn.ChildNode] = []
+    stack: list[chess.pgn.ChildNode] = list(merged.variations)
+    while stack:
+        node = stack.pop()
+        if not node.variations:
+            all_leaves.append(node)
+        else:
+            stack.extend(node.variations)
+
+    fen_eval_cache: dict[str, Optional[str]] = {}
+
+    for leaf in all_leaves:
+        board = leaf.board()
+        nfen = normalize_fen(board.fen())
+
+        if nfen not in fen_eval_cache:
+            eval_str: Optional[str] = None
+            if provider is not None:
+                score = provider(board)
+                if score is not None:
+                    eval_str = leaf_evaluator.format_eval(score)
+            if eval_str is None:
+                eval_str = extract_eval(leaf.comment)
+            fen_eval_cache[nfen] = eval_str
+
+        cached = fen_eval_cache[nfen]
+        if cached is not None:
+            # Strip any pre-existing [%eval ...] (e.g. copied from the source PGN)
+            # so the machine-readable tag stays consistent with the displayed value.
+            base = _EVAL_RE.sub("", leaf.comment)
+            base = re.sub(r"\s{2,}", " ", base).strip()
+            # Machine-readable annotation drives chesstree coloring / variation
+            # summary; the ": **<value>**" markdown suffix is the human label.
+            leaf.comment = f"{base}: **{cached}** [%eval {cached}]".strip()
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         description=(
@@ -293,6 +341,25 @@ def main() -> None:
         default=None,
         dest="max_games",
         help="Maximum number of games to fetch from Lichess (default: all games)",
+    )
+    parser.add_argument(
+        "--engine",
+        default=leaf_evaluator.DEFAULT_ENGINE,
+        help=f"UCI engine path or name (default: {leaf_evaluator.DEFAULT_ENGINE!r})",
+    )
+    parser.add_argument(
+        "--eval-depth",
+        type=int,
+        default=None,
+        dest="eval_depth",
+        help="Engine search depth (default: engine default depth)",
+    )
+    parser.add_argument(
+        "--eval-time",
+        type=float,
+        default=None,
+        dest="eval_time",
+        help="Engine search time in seconds; takes precedence over --eval-depth",
     )
     args = parser.parse_args()
 
@@ -382,21 +449,41 @@ def main() -> None:
         print("No matching games found.", file=sys.stderr)
         sys.exit(1)
 
-    assert slices
-    merged = merge_game_slices(slices)
-    merged.headers["Event"] = f"Opening repertoire ({args.username})"
+    # Build engine provider (prefer local, fall back to Lichess on unavailability).
+    provider: Optional[leaf_evaluator.EvalProvider] = None
+    closer = lambda: None  # noqa: E731
+    try:
+        engine_limit: Optional[chess.engine.Limit] = None
+        if args.eval_time is not None:
+            engine_limit = chess.engine.Limit(time=args.eval_time)
+        elif args.eval_depth is not None:
+            engine_limit = chess.engine.Limit(depth=args.eval_depth)
+        provider, closer = leaf_evaluator.make_engine_provider(args.engine, engine_limit)
+    except leaf_evaluator.EngineUnavailable as exc:
+        print(
+            f"Warning: engine unavailable, falling back to Lichess evals: {exc}",
+            file=sys.stderr,
+        )
 
-    exporter = chess.pgn.StringExporter(headers=True, variations=True, comments=True)
-    pgn_str = merged.accept(exporter)
+    try:
+        assert slices
+        merged = merge_game_slices(slices)
+        apply_leaf_evals(merged, provider)
+        merged.headers["Event"] = f"Opening repertoire ({args.username})"
 
-    if args.output:
-        with open(args.output, "w") as f:
-            f.write(pgn_str)
-            f.write("\n")
-        print(f"Written to {args.output}", file=sys.stderr)
-    else:
-        sys.stdout.write(pgn_str)
-        sys.stdout.write("\n")
+        exporter = chess.pgn.StringExporter(headers=True, variations=True, comments=True)
+        pgn_str = merged.accept(exporter)
+
+        if args.output:
+            with open(args.output, "w") as f:
+                f.write(pgn_str)
+                f.write("\n")
+            print(f"Written to {args.output}", file=sys.stderr)
+        else:
+            sys.stdout.write(pgn_str)
+            sys.stdout.write("\n")
+    finally:
+        closer()
 
 
 if __name__ == "__main__":
