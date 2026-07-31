@@ -67,6 +67,26 @@ Handy implements ──▶ Grouchy reviews ──findings──▶ Brainy triage
 - **Brainy owns the round counter** and states the round number in every assignment ("round 2 of 3").
 - **Grouchy approves when it is genuinely good.** Hard to please, not impossible to please.
 
+### Fidelity rules (added after the Part 1 acquisition refactor)
+
+These come from a real post-mortem: two of five review findings in one round were caused by
+Brainy paraphrasing the approved plan into an assignment, not by faulty implementation.
+
+- **The plan outranks the assignment.** Brainy cites the plan file and section instead of
+  restating it, and copies any exact literal verbatim. Handy reads the plan section himself; if
+  the assignment is thinner than or disagrees with the plan, the plan wins and he flags it.
+  Grouchy reviews against the **plan**, and treats a plan/assignment divergence as a finding
+  against the assignment.
+- **Surgical edits only.** Handy edits the lines that change rather than regenerating whole files
+  — whole-file rewrites were a large share of wall-clock time and buried real changes in noise.
+- **Tests must be able to fail.** Brainy states what a test or fixture must detect; Handy builds
+  fixtures that exercise those exact properties; Grouchy asks of every fixture whether it would
+  still pass if the guarded behaviour regressed.
+- **No duplicate reviews.** When Grouchy is queued, Brainy's pre-review is a cheap sanity check
+  only; his real review is the final gate after Grouchy reports.
+- **No model guessing.** Agents cannot introspect their own runtime model. Silence means "as
+  pinned"; only an actually observed fallback gets reported.
+
 ### Round limit — hard stop at 3
 
 Each loop is capped at **3 rounds** (a round = one review + one rework). At the end of round 3
