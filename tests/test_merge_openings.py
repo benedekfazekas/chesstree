@@ -925,6 +925,71 @@ class TestEventHeader:
         event_line = self._run_main_and_get_event(capsys, game_data, "myuser")
         assert event_line == '[Event "Opening repertoire (lichess:myuser)"]'
 
+    def test_two_source_event_header(self, capsys: pytest.CaptureFixture) -> None:
+        """Event header names both source:username pairs when two specs are built."""
+        import chess
+        import urllib.request
+        initial_fen = chess.Board().fen()
+        pgn = _pgn_str(["e4", "e5"])
+        lichess_game = {
+            "id": "ev2src",
+            "variant": "standard",
+            "moves": "e4 e5",
+            "pgn": pgn,
+            "players": {
+                "white": {"user": {"name": "luser"}},
+                "black": {"user": {"name": "Opp"}},
+            },
+        }
+        cc_pgn = _pgn_str(["d4", "d5"])
+        cc_game = {
+            "white": {"username": "ccuser"},
+            "black": {"username": "Opp"},
+            "rules": "chess",
+            "uuid": "cc-ev2",
+            "url": "https://www.chess.com/game/live/cc-ev2",
+            "pgn": cc_pgn,
+            "end_time": 1700000000,
+        }
+        archives_url = "https://api.chess.com/pub/player/ccuser/games/archives"
+        arc_url = "https://api.chess.com/pub/player/ccuser/games/2024/01"
+        cc_responses = {
+            archives_url: {"archives": [arc_url]},
+            arc_url: {"games": [cc_game]},
+        }
+
+        def fake_urlopen(req: urllib.request.Request) -> MagicMock:
+            payload = json.dumps(cc_responses[req.full_url]).encode("utf-8")
+            mock_resp = MagicMock()
+            mock_resp.__enter__ = lambda s: s
+            mock_resp.__exit__ = MagicMock(return_value=False)
+            mock_resp.read = lambda: payload
+            return mock_resp
+
+        with patch.object(sources, "fetch_lichess_games", return_value=[lichess_game]):
+            with patch("urllib.request.urlopen", side_effect=fake_urlopen):
+                with patch.object(
+                    merge_openings.leaf_evaluator,
+                    "make_engine_provider",
+                    side_effect=merge_openings.leaf_evaluator.EngineUnavailable("no engine"),
+                ):
+                    with patch(
+                        "sys.argv",
+                        [
+                            "merge_openings",
+                            "--lichess-username", "luser",
+                            "--chesscom-username", "ccuser",
+                            "--fen", initial_fen,
+                        ],
+                    ):
+                        merge_openings.main()
+
+        out = capsys.readouterr().out
+        event_line = next(
+            (line for line in out.splitlines() if line.startswith("[Event ")), ""
+        )
+        assert event_line == '[Event "Opening repertoire (lichess:luser, chesscom:ccuser)"]'
+
 
 # ── apply_leaf_evals — same-FEN transposition fix (G3/H1) ────────────────────
 
@@ -1172,3 +1237,221 @@ class TestCacheValidation:
         )
         with pytest.raises(ValueError, match="legacy"):
             sources.load_cache(cache_file, spec)
+
+
+# ── Spec building from CLI (argparse) ─────────────────────────────────────────
+
+
+class TestSpecBuilding:
+    """Tests that main() builds SourceSpecs correctly from CLI args."""
+
+    def _run_main(self, argv: list[str], capsys: pytest.CaptureFixture) -> None:
+        """Run main() with stubbed sources and captured output; ignore PGN output."""
+        import chess
+        initial_fen = chess.Board().fen()
+        pgn = _pgn_str(["e4", "e5"])
+        lichess_game = {
+            "id": "sb001",
+            "variant": "standard",
+            "moves": "e4 e5",
+            "pgn": pgn,
+            "players": {
+                "white": {"user": {"name": "lichessuser"}},
+                "black": {"user": {"name": "Opp1"}},
+            },
+        }
+        from unittest.mock import patch
+        with patch.object(sources, "fetch_lichess_games", return_value=[lichess_game]):
+            with patch.object(
+                merge_openings.leaf_evaluator,
+                "make_engine_provider",
+                side_effect=merge_openings.leaf_evaluator.EngineUnavailable("no engine"),
+            ):
+                with patch("sys.argv", ["merge_openings"] + argv):
+                    merge_openings.main()
+
+    def test_no_username_is_argparse_error_naming_both_flags(
+        self, capsys: pytest.CaptureFixture
+    ) -> None:
+        """Supplying no username at all must produce an error naming both flags."""
+        import chess
+        with pytest.raises(SystemExit):
+            with patch("sys.argv", ["merge_openings", "--fen", chess.Board().fen()]):
+                merge_openings.main()
+        err = capsys.readouterr().err
+        assert "--lichess-username" in err or "--chesscom-username" in err
+
+    def test_lichess_username_builds_lichess_spec(self, capsys: pytest.CaptureFixture) -> None:
+        """--lichess-username alone → one spec with source='lichess'."""
+        import chess
+        initial_fen = chess.Board().fen()
+        pgn = _pgn_str(["e4", "e5"])
+        game_data = {
+            "id": "spec01",
+            "variant": "standard",
+            "moves": "e4 e5",
+            "pgn": pgn,
+            "players": {"white": {"user": {"name": "luser"}}, "black": {"user": {"name": "O"}}},
+        }
+        with patch.object(sources, "fetch_lichess_games", return_value=[game_data]) as mock_fetch:
+            with patch.object(
+                merge_openings.leaf_evaluator,
+                "make_engine_provider",
+                side_effect=merge_openings.leaf_evaluator.EngineUnavailable("no engine"),
+            ):
+                with patch("sys.argv", ["merge_openings", "--lichess-username", "luser", "--fen", initial_fen]):
+                    merge_openings.main()
+        mock_fetch.assert_called_once()
+        assert mock_fetch.call_args[0][0] == "luser"
+
+    def test_both_usernames_build_two_specs_event_header(self, capsys: pytest.CaptureFixture) -> None:
+        """Both --lichess-username and --chesscom-username → Event header names both specs."""
+        import chess
+        import urllib.request
+        initial_fen = chess.Board().fen()
+        pgn = _pgn_str(["e4", "e5"])
+        lichess_game = {
+            "id": "both01",
+            "variant": "standard",
+            "moves": "e4 e5",
+            "pgn": pgn,
+            "players": {"white": {"user": {"name": "luser"}}, "black": {"user": {"name": "O"}}},
+        }
+        cc_pgn = _pgn_str(["d4", "d5"])
+        cc_game = {
+            "white": {"username": "ccuser"},
+            "black": {"username": "Opp"},
+            "rules": "chess",
+            "uuid": "ccuuid",
+            "url": "https://www.chess.com/game/live/001",
+            "pgn": cc_pgn,
+            "end_time": 1700000000,
+        }
+        archives_url = "https://api.chess.com/pub/player/ccuser/games/archives"
+        arc_url = "https://api.chess.com/pub/player/ccuser/games/2024/01"
+        cc_responses = {
+            archives_url: {"archives": [arc_url]},
+            arc_url: {"games": [cc_game]},
+        }
+
+        def fake_urlopen(req: urllib.request.Request) -> MagicMock:
+            payload = json.dumps(cc_responses[req.full_url]).encode("utf-8")
+            mock_resp = MagicMock()
+            mock_resp.__enter__ = lambda s: s
+            mock_resp.__exit__ = MagicMock(return_value=False)
+            mock_resp.read = lambda: payload
+            return mock_resp
+
+        with patch.object(sources, "fetch_lichess_games", return_value=[lichess_game]):
+            with patch("urllib.request.urlopen", side_effect=fake_urlopen):
+                with patch.object(
+                    merge_openings.leaf_evaluator,
+                    "make_engine_provider",
+                    side_effect=merge_openings.leaf_evaluator.EngineUnavailable("no engine"),
+                ):
+                    with patch("sys.argv", [
+                        "merge_openings",
+                        "--lichess-username", "luser",
+                        "--chesscom-username", "ccuser",
+                        "--fen", initial_fen,
+                    ]):
+                        merge_openings.main()
+        out = capsys.readouterr().out
+        event_line = next(
+            (line for line in out.splitlines() if line.startswith("[Event ")), ""
+        )
+        # Exact two-source Event header — both specs with distinct usernames.
+        assert event_line == '[Event "Opening repertoire (lichess:luser, chesscom:ccuser)"]'
+
+
+# ── Multi-source merge: single tree with accumulating leaf labels ─────────────
+
+
+class TestMultiSourceMerge:
+    """Stubbed Lichess + Chess.com games sharing an opening prefix merge into ONE tree.
+
+    Both platforms' labels must accumulate on the SAME leaf where they reach
+    the same position. This is the feature's core purpose.
+
+    To fail this test: make the two sources produce separate trees, or have
+    one source's labels not reach the shared leaf.
+    """
+
+    def _make_lichess_game_data(self, moves: list[str], game_id: str, username: str) -> dict:
+        game = _build_game(moves)
+        exp = chess.pgn.StringExporter(headers=True, variations=True, comments=True)
+        pgn = game.accept(exp)
+        return {
+            "id": game_id,
+            "variant": "standard",
+            "moves": " ".join(moves),
+            "pgn": pgn,
+            "players": {
+                "white": {"user": {"name": username}},
+                "black": {"user": {"name": "Opp"}},
+            },
+        }
+
+    def _make_chesscom_game_data(self, moves: list[str], uuid: str, username: str) -> dict:
+        game = _build_game(moves)
+        exp = chess.pgn.StringExporter(headers=True, variations=True, comments=True)
+        pgn = game.accept(exp)
+        return {
+            "white": {"username": username},
+            "black": {"username": "Opp"},
+            "rules": "chess",
+            "uuid": uuid,
+            "url": f"https://www.chess.com/game/live/{uuid}",
+            "pgn": pgn,
+            "end_time": 1700000000,
+        }
+
+    def test_same_opening_from_both_sources_merges_to_single_leaf(
+        self, capsys: pytest.CaptureFixture
+    ) -> None:
+        """Lichess game e4 e5 Nf3 and Chess.com game e4 e5 Nf3 → one leaf, two labels."""
+        import urllib.request
+        initial_fen = chess.Board().fen()
+        moves = ["e4", "e5", "Nf3"]
+        lichess_game = self._make_lichess_game_data(moves, "lich001", "luser")
+        cc_game = self._make_chesscom_game_data(moves, "cc001", "ccuser")
+
+        archives_url = "https://api.chess.com/pub/player/ccuser/games/archives"
+        arc_url = "https://api.chess.com/pub/player/ccuser/games/2024/01"
+        cc_responses = {
+            archives_url: {"archives": [arc_url]},
+            arc_url: {"games": [cc_game]},
+        }
+
+        def fake_urlopen(req: urllib.request.Request) -> MagicMock:
+            payload = json.dumps(cc_responses[req.full_url]).encode("utf-8")
+            mock_resp = MagicMock()
+            mock_resp.__enter__ = lambda s: s
+            mock_resp.__exit__ = MagicMock(return_value=False)
+            mock_resp.read = lambda: payload
+            return mock_resp
+
+        with patch.object(sources, "fetch_lichess_games", return_value=[lichess_game]):
+            with patch("urllib.request.urlopen", side_effect=fake_urlopen):
+                with patch.object(
+                    merge_openings.leaf_evaluator,
+                    "make_engine_provider",
+                    side_effect=merge_openings.leaf_evaluator.EngineUnavailable("no engine"),
+                ):
+                    with patch("sys.argv", [
+                        "merge_openings",
+                        "--lichess-username", "luser",
+                        "--chesscom-username", "ccuser",
+                        "--fen", initial_fen,
+                    ]):
+                        merge_openings.main()
+
+        out = capsys.readouterr().out
+        # Both URLs must appear — both labels on the same leaf
+        assert "https://lichess.org/lich001" in out
+        assert "https://www.chess.com/game/live/cc001" in out
+        # There should be exactly ONE leaf (one line reaching Nf3), i.e. a single
+        # occurrence of [%opening_end] — not two separate game trees.
+        assert out.count("[%opening_end]") == 1, (
+            "Expected single leaf with both labels, got separate trees or leaves"
+        )

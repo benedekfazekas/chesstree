@@ -3,13 +3,11 @@
 
 POC: uses chesstree.opening_divider to compute the opening cutoff locally.
 Leaf evals prefer a local engine (Stockfish); fall back to inline [%eval] annotations.
-Sources are wired through sources.py; currently only Lichess is implemented.
+Sources are wired through sources.py; Lichess and Chess.com can be merged in one run.
 """
 from __future__ import annotations
 
 import argparse
-import calendar
-import datetime
 import re
 import sys
 from pathlib import Path
@@ -227,27 +225,6 @@ def apply_leaf_evals(
             leaf.comment = f"{base}: **{cached}** [%eval {cached}]".strip()
 
 
-# ── Date helpers ──────────────────────────────────────────────────────────────
-
-
-def _month_to_ms_start(ym: str) -> int:
-    """``'YYYY-MM'`` → first millisecond of that month, UTC (epoch ms)."""
-    year, month = int(ym[:4]), int(ym[5:7])
-    dt = datetime.datetime(year, month, 1, tzinfo=datetime.timezone.utc)
-    return int(dt.timestamp() * 1000)
-
-
-def _month_to_ms_end(ym: str) -> int:
-    """``'YYYY-MM'`` → last millisecond of that month, UTC (epoch ms).
-
-    Inclusive: the whole named month is included in the query range.
-    """
-    year, month = int(ym[:4]), int(ym[5:7])
-    last_day = calendar.monthrange(year, month)[1]
-    dt = datetime.datetime(year, month, last_day, 23, 59, 59, tzinfo=datetime.timezone.utc)
-    return int(dt.timestamp() * 1000) + 999
-
-
 # ── main ──────────────────────────────────────────────────────────────────────
 
 
@@ -276,6 +253,25 @@ def main() -> None:
         help=(
             "Lichess JSON cache file.  If the file exists, games are loaded from it "
             "instead of calling Lichess.  If it does not exist, games are fetched and "
+            "saved there."
+        ),
+    )
+    parser.add_argument("--chesscom-username", default=None, help="Chess.com username")
+    parser.add_argument(
+        "--chesscom-max-games",
+        type=int,
+        default=None,
+        dest="chesscom_max_games",
+        help="Maximum number of games to fetch from Chess.com (default: all games)",
+    )
+    parser.add_argument(
+        "--chesscom-cache",
+        metavar="FILE",
+        default=None,
+        dest="chesscom_cache",
+        help=(
+            "Chess.com JSON cache file.  If the file exists, games are loaded from it "
+            "instead of calling Chess.com.  If it does not exist, games are fetched and "
             "saved there."
         ),
     )
@@ -326,9 +322,10 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    if not args.lichess_username:
+    if not args.lichess_username and not args.chesscom_username:
         parser.error(
-            "at least one source username is required (use --lichess-username)"
+            "at least one source username is required "
+            "(use --lichess-username or --chesscom-username)"
         )
 
     # ── Build source specs ────────────────────────────────────────────────────
@@ -343,10 +340,17 @@ def main() -> None:
                 cache_path=Path(args.lichess_cache) if args.lichess_cache else None,
             )
         )
+    if args.chesscom_username:
+        specs.append(
+            SourceSpec(
+                source="chesscom",
+                username=args.chesscom_username,
+                max_games=args.chesscom_max_games,
+                cache_path=Path(args.chesscom_cache) if args.chesscom_cache else None,
+            )
+        )
 
     target_fen = normalize_fen(args.fen)
-    since_ms = _month_to_ms_start(args.since) if args.since else None
-    until_ms = _month_to_ms_end(args.until) if args.until else None
 
     # ── Acquire and filter ────────────────────────────────────────────────────
 
@@ -354,7 +358,7 @@ def main() -> None:
         g
         for spec in specs
         for g in sources.iter_games(
-            spec, color=args.color, since_ms=since_ms, until_ms=until_ms
+            spec, color=args.color, since=args.since, until=args.until
         )
     ]
 
