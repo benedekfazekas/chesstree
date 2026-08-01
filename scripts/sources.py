@@ -47,6 +47,7 @@ class SourceGame:
     source: str                   # "lichess" | "chesscom" | "local"
     game_id: str                  # for warning messages
     has_inline_eval: bool         # True when the PGN carries [%eval …]
+    opening: dict | None          # {"eco": "B12", "name": "…"} from Lichess; None otherwise
 
 
 @dataclass(frozen=True)
@@ -158,6 +159,7 @@ def _build_lichess_source_game(
     opponent = get_opponent_name(game_dict, username)
     url = f"https://lichess.org/{game_id}"
     has_inline_eval = bool(_EVAL_RE.search(pgn_str))
+    opening = game_dict.get("opening") or None
 
     return SourceGame(
         game=game,
@@ -167,6 +169,7 @@ def _build_lichess_source_game(
         source="lichess",
         game_id=game_id,
         has_inline_eval=has_inline_eval,
+        opening=opening,
     )
 
 
@@ -533,4 +536,5 @@ def _build_chesscom_source_game(
         source="chesscom",
         game_id=game_id,
         has_inline_eval=has_inline_eval,
+        opening=None,
     )

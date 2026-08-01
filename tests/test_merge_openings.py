@@ -923,7 +923,7 @@ class TestEventHeader:
             },
         }
         event_line = self._run_main_and_get_event(capsys, game_data, "myuser")
-        assert event_line == '[Event "Opening repertoire (lichess:myuser)"]'
+        assert event_line == '[Event "Opening repertoire performance for myuser (lichess)"]'
 
     def test_two_source_event_header(self, capsys: pytest.CaptureFixture) -> None:
         """Event header names both source:username pairs when two specs are built."""
@@ -988,8 +988,7 @@ class TestEventHeader:
         event_line = next(
             (line for line in out.splitlines() if line.startswith("[Event ")), ""
         )
-        assert event_line == '[Event "Opening repertoire (lichess:luser, chesscom:ccuser)"]'
-
+        assert event_line == '[Event "Opening repertoire performance for luser (lichess) ccuser (chesscom)"]'
 
 # ── apply_leaf_evals — same-FEN transposition fix (G3/H1) ────────────────────
 
@@ -1361,7 +1360,7 @@ class TestSpecBuilding:
             (line for line in out.splitlines() if line.startswith("[Event ")), ""
         )
         # Exact two-source Event header — both specs with distinct usernames.
-        assert event_line == '[Event "Opening repertoire (lichess:luser, chesscom:ccuser)"]'
+        assert event_line == '[Event "Opening repertoire performance for luser (lichess) ccuser (chesscom)"]'
 
 
 # ── Multi-source merge: single tree with accumulating leaf labels ─────────────

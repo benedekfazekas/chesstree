@@ -302,6 +302,15 @@ def main() -> None:
     )
     parser.add_argument("--output", help="Output PGN file (default: stdout)")
     parser.add_argument(
+        "--event",
+        default=None,
+        metavar="TITLE",
+        help=(
+            "Override the PGN Event header (game title).  When set, the automatic "
+            "opening name/ECO resolution is skipped."
+        ),
+    )
+    parser.add_argument(
         "--engine",
         default=leaf_evaluator.DEFAULT_ENGINE,
         help=f"UCI engine path or name (default: {leaf_evaluator.DEFAULT_ENGINE!r})",
@@ -363,6 +372,7 @@ def main() -> None:
     ]
 
     slices: list[tuple[chess.pgn.Game, str]] = []
+    filtered_sources: list[sources.SourceGame] = []
     filtered_count = 0
     skipped_count = 0
 
@@ -394,6 +404,7 @@ def main() -> None:
         result = create_slice(src, filter_ply, opening_end_ply)
         if result is not None:
             slices.append(result)
+            filtered_sources.append(src)
         else:
             skipped_count += 1
 
@@ -449,10 +460,25 @@ def main() -> None:
                 msg += f"\n         (no local engine: {engine_unavailable_reason})"
             print(msg, file=sys.stderr)
 
-        # G1 fix: replace the single-username Event header with source:username pairs.
-        merged.headers["Event"] = (
-            f"Opening repertoire ({', '.join(f'{s.source}:{s.username}' for s in specs)})"
-        )
+        # Set Event header: manual override > opening from first Lichess game > fallback.
+        source_str = " ".join(f"{s.username} ({s.source})" for s in specs)
+        if args.event:
+            merged.headers["Event"] = args.event
+        else:
+            first_opening = next(
+                (src.opening for src in filtered_sources if src.opening),
+                None,
+            )
+            if first_opening:
+                eco = first_opening.get("eco", "")
+                name = first_opening.get("name", "")
+                opening_str = f"{eco} {name}".strip()
+                merged.headers["Event"] = f"{opening_str} performance for {source_str}"
+            else:
+                # G1 fix: replace the single-username Event header with source:username pairs.
+                merged.headers["Event"] = (
+                    f"Opening repertoire performance for {source_str}"
+                )
 
         exporter = chess.pgn.StringExporter(headers=True, variations=True, comments=True)
         pgn_str = merged.accept(exporter)
