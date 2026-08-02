@@ -583,6 +583,14 @@
     .eval-chart-svg { display: block; }
     .eval-chart-svg .tick text { fill: currentColor; font-size: 11px; }
     .eval-chart-svg .domain, .eval-chart-svg .tick line { stroke: currentColor; opacity: 0.3; }
+    .eval-bar-row { cursor: pointer; }
+    .eval-bar-row rect.eval-bar { transition: opacity 0.15s; }
+    .eval-bar-row.eval-bar-dimmed rect.eval-bar { opacity: 0.22; }
+    .eval-bar-row.eval-bar-selected rect.eval-bar { opacity: 1; stroke: currentColor; stroke-width: 1.5px; }
+    .eval-bar-row.eval-bar-dimmed text { opacity: 0.35; }
+    .eval-chart-svg .tick text { transition: opacity 0.15s; }
+    .eval-chart-svg .tick.eval-tick-dimmed text { opacity: 0.35; }
+    .eval-chart-svg .tick.eval-tick-selected text { opacity: 1; font-weight: 700; }
     /* Summary page title */
     .summary-page-title {
       display: flex;
@@ -2319,7 +2327,7 @@
       const wrapper = document.createElement('div');
       wrapper.className = 'eval-barchart-wrapper';
 
-      const margin = { top: 8, right: 50, bottom: 28, left: 165 };
+      const margin = { top: 28, right: 50, bottom: 42, left: 165 };
       const innerW = 160;
       const innerH = activeCats.length * 24;
       const svgW = margin.left + innerW + margin.right;
@@ -2359,10 +2367,15 @@
             .tickFormat(d3.format('d'))
         );
 
-      // Bars
-      g.selectAll('.eval-bar')
+      // Bars — each bar row is a <g> for unified hit-testing and selection state
+      const barRows = g.selectAll('.eval-bar-row')
         .data(activeCats)
-        .join('rect')
+        .join('g')
+        .attr('class', 'eval-bar-row')
+        .attr('data-key', d => d.key)
+        .style('cursor', 'pointer');
+
+      barRows.append('rect')
         .attr('class', 'eval-bar')
         .attr('x', 0)
         .attr('y', d => yScale(d.key))
@@ -2373,10 +2386,39 @@
         .append('title')
         .text(d => `${d.label} ${d.range}: ${buckets[d.key].length}`);
 
-      // Count labels at end of each bar
-      g.selectAll('.eval-count')
-        .data(activeCats)
-        .join('text')
+      // Chart title
+      svg.append('text')
+        .attr('x', svgW / 2)
+        .attr('y', margin.top - 10)
+        .attr('text-anchor', 'middle')
+        .attr('font-size', '12px')
+        .attr('font-weight', '600')
+        .attr('fill', 'currentColor')
+        .text('Lines by eval');
+
+      // X-axis label
+      g.append('text')
+        .attr('x', innerW / 2)
+        .attr('y', innerH + 36)
+        .attr('text-anchor', 'middle')
+        .attr('font-size', '11px')
+        .attr('fill', 'currentColor')
+        .attr('opacity', 0.65)
+        .text('count');
+
+      // Y-axis label
+      g.append('text')
+        .attr('transform', `rotate(-90)`)
+        .attr('x', -(innerH / 2))
+        .attr('y', -margin.left + 10)
+        .attr('text-anchor', 'middle')
+        .attr('font-size', '11px')
+        .attr('fill', 'currentColor')
+        .attr('opacity', 0.65)
+        .text('eval');
+
+      // Count labels — inside each bar row group
+      barRows.append('text')
         .attr('class', 'eval-count')
         .attr('x', d => xScale(buckets[d.key].length) + 5)
         .attr('y', d => yScale(d.key) + yScale.bandwidth() / 2)
@@ -2386,6 +2428,59 @@
         .attr('opacity', 0.65)
         .text(d => buckets[d.key].length);
 
+      // Apply stored filter selection to visual state and table rows.
+      function _applyEvalFilter() {
+        const anySelected = _evalFilterSelected.size > 0;
+        // Update bar row classes
+        g.selectAll('.eval-bar-row').each(function(d) {
+          const sel = d3.select(this);
+          const isSelected = _evalFilterSelected.has(d.key);
+          sel.classed('eval-bar-selected', anySelected && isSelected);
+          sel.classed('eval-bar-dimmed', anySelected && !isSelected);
+        });
+        // Update y-axis tick classes
+        g.selectAll('.tick').each(function() {
+          const tick = d3.select(this);
+          const key = tick.datum();
+          const isSelected = _evalFilterSelected.has(key);
+          tick.classed('eval-tick-selected', anySelected && isSelected);
+          tick.classed('eval-tick-dimmed', anySelected && !isSelected);
+        });
+        // Show/hide table rows
+        const table = container.querySelector('.var-summary-table');
+        if (!table) return;
+        table.querySelectorAll('tbody tr').forEach(tr => {
+          const cat = tr.dataset.evalCat;
+          tr.style.display = (!anySelected || _evalFilterSelected.has(cat)) ? '' : 'none';
+        });
+      }
+
+      // Restore any persisted selection state from a previous render.
+      _applyEvalFilter();
+
+      // Click handler on bar rows.
+      g.selectAll('.eval-bar-row').on('click', function(event, d) {
+        const key = d.key;
+        const wasSelected = _evalFilterSelected.has(key);
+        if (event.ctrlKey || event.metaKey) {
+          // Ctrl/Cmd+click: toggle this row without affecting others.
+          if (wasSelected) {
+            _evalFilterSelected.delete(key);
+          } else {
+            _evalFilterSelected.add(key);
+          }
+        } else {
+          if (wasSelected && _evalFilterSelected.size === 1) {
+            // Clicking the only selected row deselects it (show all).
+            _evalFilterSelected.clear();
+          } else {
+            // Normal click: select only this row.
+            _evalFilterSelected = new Set([key]);
+          }
+        }
+        _applyEvalFilter();
+      });
+
       // Insert after title div, before the table
       const table = container.querySelector('.var-summary-table');
       container.insertBefore(wrapper, table);
@@ -2393,6 +2488,8 @@
 
     // Stored rows for navigation from summary buttons.
     let _summaryRows = [];
+    // Persistent eval-category filter selection (Set of category keys). Empty = show all.
+    let _evalFilterSelected = new Set();
 
     // Render the variation summary table.
     function renderSummary() {
@@ -2449,7 +2546,7 @@
         // Merged hover fens from all segments in path.
         const mergedHoverFens = hoverEnabled ? _mergeHoverFens(segmentPath) : {};
 
-        html += `<tr class="${rowTypeClass}"${rowBg ? ` style="--row-bg:${rowBg}"` : ''}>`;
+        html += `<tr class="${rowTypeClass}" data-eval-cat="${catKey || ''}"${rowBg ? ` style="--row-bg:${rowBg}"` : ''}>`;
         html += `<td class="vs-count-cell">`;
         html += `<span class="vs-count-num">${idx + 1}</span>`;
         html += `<button class="vs-nav-btn" data-row="${idx}" data-target="tree" title="Open in tree view">🌳</button>`;
