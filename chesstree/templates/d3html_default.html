@@ -1077,8 +1077,10 @@
         : "";
       const lastEval = moves[moves.length - 1]?.eval || null;
       const headerBg = _evalRowBg(lastEval);
+      const evalStr = _formatEval(lastEval);
       const headerStyle = headerBg ? ` style="background:${headerBg};border-radius:3px;padding:2px 4px;margin:-2px -4px"` : "";
-      return `<div class="node-header"${headerStyle}><span>${lineType}: ${range}</span>${countBadge}</div><hr/>`;
+      const titleAttr = evalStr ? ` title="${esc(evalStr)}"` : "";
+      return `<div class="node-header"${headerStyle}${titleAttr}><span>${lineType}: ${range}</span>${countBadge}</div><hr/>`;
     }
 
     // Return { collapsed, hiddenCount } for a data node
@@ -1668,7 +1670,9 @@
               btnContent += `<div class="deck-var-comment">${esc(edge.startingComment.join(' '))}</div>`;
             }
             const moveStyle = vBg ? ` style="background:${vBg};border-radius:3px;padding:1px 5px"` : '';
-            btnContent += `<span class="deck-var-move${edge.nagClass ? ' ' + edge.nagClass : ''}"${moveStyle}>${esc(edge.move)}</span>`;
+            const vEvalStr = _formatEval(vLastEval);
+            const moveTitleAttr = vEvalStr ? ` title="${esc(vEvalStr)}"` : '';
+            btnContent += `<span class="deck-var-move${edge.nagClass ? ' ' + edge.nagClass : ''}"${moveStyle}${moveTitleAttr}>${esc(edge.move)}</span>`;
             if (edge.comment) {
               btnContent += `<div class="deck-var-comment">${esc(edge.comment.join(' '))}</div>`;
             }
@@ -1681,7 +1685,9 @@
             subtreeEntries.forEach(({ move, nagClass, evalObj }) => {
               const bg = _evalRowBg(evalObj);
               const style = bg ? ` style="background:${bg}"` : '';
-              btnContent += `<span class="deck-var-more-move${nagClass ? ' ' + nagClass : ''}"${style}>${esc(move)}</span>`;
+              const moreEvalStr = _formatEval(evalObj);
+              const moreTitleAttr = moreEvalStr ? ` title="${esc(moreEvalStr)}"` : '';
+              btnContent += `<span class="deck-var-more-move${nagClass ? ' ' + nagClass : ''}"${style}${moreTitleAttr}>${esc(move)}</span>`;
             });
             btnContent += '</div>';
           }
