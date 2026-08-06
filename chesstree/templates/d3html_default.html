@@ -580,6 +580,38 @@
 
     /* Eval distribution barchart in summary view */
     .eval-barchart-wrapper { margin-bottom: 1.5rem; }
+    .eval-barchart-header { position: relative; display: flex; align-items: center; justify-content: center; margin-bottom: 0.3rem; }
+    .eval-barchart-title { font-size: 12px; font-weight: 600; }
+    .eval-barchart-ctrl-btns { position: absolute; right: 0; display: flex; gap: 4px; }
+    .eval-barchart-ctrl-btn { background: var(--btn-bg); border: 1px solid var(--btn-border); border-radius: 4px; color: var(--text); cursor: pointer; font-size: 0.8rem; padding: 0.25rem 0.65rem; }
+    .eval-barchart-ctrl-btn:hover { background: var(--btn-hover); }
+    /* Eval config overlay */
+    .eval-cfg-overlay { position: fixed; inset: 0; z-index: 1000; background: rgba(0,0,0,0.55); display: flex; align-items: center; justify-content: center; }
+    .eval-cfg-panel { background: var(--bg,#1e1e1e); border: 1px solid var(--border,#444); border-radius: 10px; padding: 1.5rem; max-width: 520px; width: 90%; max-height: 90vh; overflow-y: auto; box-shadow: 0 8px 32px rgba(0,0,0,0.5); }
+    .eval-cfg-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; }
+    .eval-cfg-title { font-weight: 700; font-size: 1rem; }
+    .eval-cfg-close { background: none; border: none; cursor: pointer; font-size: 1.2rem; color: currentColor; opacity: 0.7; padding: 0.2rem 0.5rem; border-radius: 4px; }
+    .eval-cfg-close:hover { opacity: 1; background: rgba(255,255,255,0.12); }
+    .eval-cfg-add { background: rgba(255,255,255,0.08); border: 1px solid var(--border,#444); border-radius: 6px; color: currentColor; padding: 4px 10px; font-size: 0.82rem; cursor: pointer; }
+    .eval-cfg-add:hover:not(:disabled) { background: rgba(255,255,255,0.15); }
+    .eval-cfg-add:disabled { opacity: 0.3; cursor: default; }
+    .eval-cfg-table { width: 100%; border-collapse: collapse; margin-bottom: 0.5rem; }
+    .eval-cfg-table td { padding: 3px 4px; vertical-align: middle; white-space: nowrap; }
+    .eval-cfg-name { background: rgba(255,255,255,0.07); border: 1px solid var(--border,#444); border-radius: 4px; color: currentColor; padding: 3px 6px; font-size: 0.82rem; width: 150px; }
+    .eval-cfg-num { background: rgba(255,255,255,0.07); border: 1px solid var(--border,#444); border-radius: 4px; color: currentColor; padding: 3px 6px; font-size: 0.82rem; width: 58px; text-align: right; }
+    .eval-cfg-num.err { border-color: #cc3333; }
+    .eval-cfg-fixed { opacity: 0.5; font-size: 0.82rem; }
+    .eval-cfg-sep { padding: 0 3px; opacity: 0.5; font-size: 0.82rem; }
+    .eval-cfg-rm { background: none; border: none; cursor: pointer; color: #cc3333; font-size: 0.9rem; padding: 2px 5px; border-radius: 4px; opacity: 0.75; }
+    .eval-cfg-rm:hover { opacity: 1; background: rgba(204,51,51,0.15); }
+    .eval-cfg-rm:disabled { opacity: 0.18; cursor: default; pointer-events: none; }
+    .eval-cfg-err { color: #cc3333; font-size: 0.8rem; margin-bottom: 0.5rem; min-height: 1em; }
+    .eval-cfg-btn { background: var(--btn-bg); border: 1px solid var(--btn-border); border-radius: 4px; color: var(--text); cursor: pointer; font-size: 0.8rem; padding: 0.25rem 0.65rem; }
+    .eval-cfg-btn:hover { background: var(--btn-hover); }
+    .eval-cfg-btn-apply { background: var(--accent,#3c8cd4); border-color: var(--accent,#3c8cd4); color: #fff; }
+    .eval-cfg-btn-apply:hover { filter: brightness(1.12); background: var(--accent,#3c8cd4); }
+    .eval-cfg-footer { display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 0.75rem; }
+    .eval-cfg-divider { border: none; border-top: 1px solid var(--border,#444); margin: 2px 0; }
     .eval-chart-svg { display: block; }
     .eval-chart-svg .tick text { fill: currentColor; font-size: 11px; }
     .eval-chart-svg .domain, .eval-chart-svg .tick line { stroke: currentColor; opacity: 0.3; }
@@ -2262,18 +2294,83 @@
       return html;
     }
 
-    // Eval distribution barchart for summary view.
-    const _EVAL_CATEGORIES = [
-      { key: 'winning',    label: 'Winning',               range: '(+4.0 / mate)', color: '#22a022' },
-      { key: 'decisive+',  label: 'Decisive advantage',    range: '(+2.5\u20134.0)',    color: '#38b838' },
-      { key: 'better',     label: 'Better',                range: '(+1.2\u20132.5)',    color: '#66cc66' },
-      { key: 'slightedge', label: 'Slight edge',           range: '(+0.5\u20131.2)',    color: '#99dd99' },
-      { key: 'equal',      label: 'Equal',                 range: '(\u00b10.5)',        color: '#999999' },
-      { key: 'slightdis',  label: 'Slight disadvantage',   range: '(\u22120.5\u2013\u22121.2)',  color: '#e8a0a0' },
-      { key: 'worse',      label: 'Worse',                 range: '(\u22121.2\u2013\u22122.5)',  color: '#dd6666' },
-      { key: 'decisive-',  label: 'Decisive disadvantage', range: '(\u22122.5\u2013\u22124.0)', color: '#cc3333' },
-      { key: 'losing',     label: 'Losing',                range: '(\u22124.0 / mate)', color: '#bb1111' },
-    ];
+    // Eval distribution barchart for summary view — config-driven categories.
+    const _EVAL_CFG_KEY = 'chesstree_eval_config';
+    const _EVAL_DEFAULTS = {
+      winLabel: 'Winning', loseLabel: 'Losing', equalLabel: 'Equal',
+      equalUpper: 0.5, equalLower: -0.5,
+      pos: [
+        { label: 'Slight edge',           upper: 1.2, color: '#99dd99' },
+        { label: 'Better',                upper: 2.5, color: '#66cc66' },
+        { label: 'Decisive advantage',    upper: 4.0, color: '#38b838' },
+      ],
+      neg: [
+        { label: 'Slight disadvantage',   lower: -1.2, color: '#e8a0a0' },
+        { label: 'Worse',                 lower: -2.5, color: '#dd6666' },
+        { label: 'Decisive disadvantage', lower: -4.0, color: '#cc3333' },
+      ],
+    };
+    function _loadEvalCfg() {
+      try { const r = localStorage.getItem(_EVAL_CFG_KEY); if (r) return JSON.parse(r); } catch(e) {}
+      return JSON.parse(JSON.stringify(_EVAL_DEFAULTS));
+    }
+    function _saveEvalCfg(cfg) { localStorage.setItem(_EVAL_CFG_KEY, JSON.stringify(cfg)); }
+    function _buildEvalCats(cfg) {
+      const cats = [{ key: 'win', label: cfg.winLabel, color: '#22a022' }];
+      for (let i = cfg.pos.length - 1; i >= 0; i--)
+        cats.push({ key: `pos_${i}`, label: cfg.pos[i].label, color: cfg.pos[i].color });
+      cats.push({ key: 'equal', label: cfg.equalLabel, color: '#999999' });
+      cfg.neg.forEach((n, i) => cats.push({ key: `neg_${i}`, label: n.label, color: n.color }));
+      cats.push({ key: 'lose', label: cfg.loseLabel, color: '#bb1111' });
+      return cats;
+    }
+    function _buildEvalCatKeyFn(cfg) {
+      return function(evalObj) {
+        const score = _evalPlayerScore(evalObj);
+        if (score === null) return null;
+        if (score >= cfg.pos[cfg.pos.length - 1].upper) return 'win';
+        for (let i = cfg.pos.length - 1; i >= 0; i--) {
+          if (score >= (i === 0 ? cfg.equalUpper : cfg.pos[i-1].upper)) return `pos_${i}`;
+        }
+        if (score >= cfg.equalLower) return 'equal';
+        for (let i = 0; i < cfg.neg.length; i++) {
+          if (score >= cfg.neg[i].lower) return `neg_${i}`;
+        }
+        return 'lose';
+      };
+    }
+    function _evalCatRangeStr(cfg, key) {
+      // All range strings are in PGN CP terms (white perspective).
+      // For forBlack, negate and swap bounds so the displayed range matches
+      // what white's engine score would be for that category.
+      const neg1 = forBlack ? -1 : 1;
+      const fmt = v => (neg1 * v).toFixed(1);
+      const range = (lo, hi) => forBlack
+        ? `${fmt(hi)}\u2013${fmt(lo)}`
+        : `${fmt(lo)}\u2013${fmt(hi)}`;
+
+      if (key === 'win')   return forBlack
+        ? `\u2264\u2009${fmt(cfg.pos[cfg.pos.length-1].upper)}`
+        : `\u2265\u2009${fmt(cfg.pos[cfg.pos.length-1].upper)}`;
+      if (key === 'lose')  return forBlack
+        ? `\u2265\u2009${fmt(cfg.neg[cfg.neg.length-1].lower)}`
+        : `\u2264\u2009${fmt(cfg.neg[cfg.neg.length-1].lower)}`;
+      if (key === 'equal') return `${fmt(cfg.equalLower)}\u2013${fmt(cfg.equalUpper)}`;
+      const pm = key.match(/^pos_(\d+)$/);
+      if (pm) { const i = +pm[1]; const lo = i===0 ? cfg.equalUpper : cfg.pos[i-1].upper; return range(lo, cfg.pos[i].upper); }
+      const nm = key.match(/^neg_(\d+)$/);
+      if (nm) { const i = +nm[1]; const hi = i===0 ? cfg.equalLower : cfg.neg[i-1].lower; return range(cfg.neg[i].lower, hi); }
+      return '';
+    }
+    let _evalCfg = _loadEvalCfg();
+    let _EVAL_CATEGORIES = _buildEvalCats(_evalCfg);
+    let _evalCategoryKey = _buildEvalCatKeyFn(_evalCfg);
+    function _refreshEvalCfg(cfg) {
+      _evalCfg = cfg;
+      _EVAL_CATEGORIES = _buildEvalCats(cfg);
+      _evalCategoryKey = _buildEvalCatKeyFn(cfg);
+      _evalFilterSelected = new Set();
+    }
 
     function _evalPlayerScore(evalObj) {
       if (!evalObj) return null;
@@ -2286,20 +2383,6 @@
         return forBlack ? -s : s;
       }
       return null;
-    }
-
-    function _evalCategoryKey(evalObj) {
-      const score = _evalPlayerScore(evalObj);
-      if (score === null) return null;
-      if (score >= 4.0)  return 'winning';
-      if (score >= 2.5)  return 'decisive+';
-      if (score >= 1.2)  return 'better';
-      if (score >= 0.5)  return 'slightedge';
-      if (score >= -0.5) return 'equal';
-      if (score >= -1.2) return 'slightdis';
-      if (score >= -2.5) return 'worse';
-      if (score >= -4.0) return 'decisive-';
-      return 'losing';
     }
 
     function _getLastComment(moves) {
@@ -2333,11 +2416,28 @@
       const wrapper = document.createElement('div');
       wrapper.className = 'eval-barchart-wrapper';
 
-      const margin = { top: 28, right: 50, bottom: 42, left: 165 };
+      // Header: title + reset/config buttons
+      const hdr = document.createElement('div');
+      hdr.className = 'eval-barchart-header';
+      hdr.innerHTML = `<span class="eval-barchart-title">Lines by opening end eval</span>
+        <div class="eval-barchart-ctrl-btns">
+          <button class="eval-barchart-ctrl-btn eval-barchart-reset-btn" title="Reset eval categories to defaults">&#x21BA; Reset</button>
+          <button class="eval-barchart-ctrl-btn eval-barchart-cfg-btn" title="Configure eval categories">&#9881;</button>
+        </div>`;
+      wrapper.appendChild(hdr);
+      hdr.querySelector('.eval-barchart-reset-btn').addEventListener('click', () => {
+        localStorage.removeItem(_EVAL_CFG_KEY);
+        _refreshEvalCfg(JSON.parse(JSON.stringify(_EVAL_DEFAULTS)));
+        renderSummary();
+      });
+      hdr.querySelector('.eval-barchart-cfg-btn').addEventListener('click', () => _openEvalConfigOverlay());
+
+      const margin = { top: 10, right: 50, bottom: 42, left: 165 };
       const innerW = 160;
       const innerH = activeCats.length * 24;
       const svgW = margin.left + innerW + margin.right;
       const svgH = margin.top + innerH + margin.bottom;
+      wrapper.style.width = `${svgW}px`;
 
       const maxCount = d3.max(activeCats, c => buckets[c.key].length);
 
@@ -2390,17 +2490,7 @@
         .attr('fill', d => d.color)
         .attr('rx', 2)
         .append('title')
-        .text(d => `${d.label} ${d.range}: ${buckets[d.key].length}`);
-
-      // Chart title
-      svg.append('text')
-        .attr('x', svgW / 2)
-        .attr('y', margin.top - 10)
-        .attr('text-anchor', 'middle')
-        .attr('font-size', '12px')
-        .attr('font-weight', '600')
-        .attr('fill', 'currentColor')
-        .text('Lines by eval');
+        .text(d => `${d.label} (${_evalCatRangeStr(_evalCfg, d.key)}): ${buckets[d.key].length}`);
 
       // X-axis label
       g.append('text')
@@ -2421,7 +2511,7 @@
         .attr('font-size', '11px')
         .attr('fill', 'currentColor')
         .attr('opacity', 0.65)
-        .text('eval');
+        .text('opening end eval');
 
       // Count labels — inside each bar row group
       barRows.append('text')
@@ -2490,6 +2580,197 @@
       // Insert after title div, before the table
       const table = container.querySelector('.var-summary-table');
       container.insertBefore(wrapper, table);
+    }
+
+    // Config overlay for eval categories.
+    function _openEvalConfigOverlay() {
+      let draft = JSON.parse(JSON.stringify(_evalCfg));
+
+      const overlay = document.createElement('div');
+      overlay.className = 'eval-cfg-overlay';
+      overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+
+      const panel = document.createElement('div');
+      panel.className = 'eval-cfg-panel';
+      overlay.appendChild(panel);
+
+      panel.innerHTML =
+        `<div class="eval-cfg-head">
+          <span class="eval-cfg-title">Eval Category Configuration</span>
+          <button class="eval-cfg-close" title="Close">&#10005;</button>
+        </div>
+        <div style="display:flex;justify-content:flex-end;margin-bottom:0.5rem">
+          <button class="eval-cfg-add" id="eval-cfg-add-btn" title="Add one range above and one below equal">+ Add pair</button>
+        </div>
+        <div class="eval-cfg-err" id="eval-cfg-err"></div>
+        <table class="eval-cfg-table" id="eval-cfg-table"></table>
+        <div class="eval-cfg-footer">
+          <button class="eval-cfg-btn" id="eval-cfg-cancel">Cancel</button>
+          <button class="eval-cfg-btn eval-cfg-btn-apply" id="eval-cfg-apply">Apply</button>
+        </div>`;
+
+      document.body.appendChild(overlay);
+
+      function _renderTable() {
+        const tbl = document.getElementById('eval-cfg-table');
+        const nPos = draft.pos.length, nNeg = draft.neg.length;
+        const canRemove = Math.min(nPos, nNeg) > 1;
+        const maxPairs = _EVAL_DEFAULTS.pos.length;
+        let h = '';
+
+        // Winning row
+        h += `<tr>
+          <td><input type="text" class="eval-cfg-name" data-role="win-label" value="${esc(draft.winLabel)}"></td>
+          <td class="eval-cfg-sep">&ge;</td>
+          <td><span class="eval-cfg-win-thresh eval-cfg-fixed">${draft.pos[nPos-1].upper.toFixed(1)}</span></td>
+          <td></td>
+        </tr>`;
+
+        // Positive ranges — outermost first (highest index first)
+        for (let i = nPos - 1; i >= 0; i--) {
+          const lo = i === 0 ? draft.equalUpper : draft.pos[i-1].upper;
+          h += `<tr>
+            <td><input type="text" class="eval-cfg-name" data-role="pos-label" data-idx="${i}" value="${esc(draft.pos[i].label)}"></td>
+            <td><span class="eval-cfg-fixed" data-from-pos="${i}">${lo.toFixed(1)}</span><span class="eval-cfg-sep"> &ndash; </span></td>
+            <td><input type="number" class="eval-cfg-num" data-role="pos-upper" data-idx="${i}" value="${draft.pos[i].upper.toFixed(1)}" step="0.1" min="0"></td>
+            <td><button class="eval-cfg-rm" data-rm-type="pos" data-rm-idx="${i}" ${canRemove ? '' : 'disabled'} title="Remove pair">&times;</button></td>
+          </tr>`;
+        }
+
+        // Equal row
+        h += `<tr><td colspan="4"><hr class="eval-cfg-divider"></td></tr>
+          <tr>
+            <td><span class="eval-cfg-fixed">Equal</span></td>
+            <td><input type="number" class="eval-cfg-num" data-role="equal-lower" value="${draft.equalLower.toFixed(1)}" step="0.1" max="0"><span class="eval-cfg-sep"> &ndash; </span></td>
+            <td><input type="number" class="eval-cfg-num" data-role="equal-upper" value="${draft.equalUpper.toFixed(1)}" step="0.1" min="0"></td>
+            <td></td>
+          </tr>
+          <tr><td colspan="4"><hr class="eval-cfg-divider"></td></tr>`;
+
+        // Negative ranges — innermost first (index 0 first)
+        for (let i = 0; i < nNeg; i++) {
+          const hi = i === 0 ? draft.equalLower : draft.neg[i-1].lower;
+          h += `<tr>
+            <td><input type="text" class="eval-cfg-name" data-role="neg-label" data-idx="${i}" value="${esc(draft.neg[i].label)}"></td>
+            <td><span class="eval-cfg-fixed" data-from-neg="${i}">${hi.toFixed(1)}</span><span class="eval-cfg-sep"> &ndash; </span></td>
+            <td><input type="number" class="eval-cfg-num" data-role="neg-lower" data-idx="${i}" value="${draft.neg[i].lower.toFixed(1)}" step="0.1" max="0"></td>
+            <td><button class="eval-cfg-rm" data-rm-type="neg" data-rm-idx="${i}" ${canRemove ? '' : 'disabled'} title="Remove pair">&times;</button></td>
+          </tr>`;
+        }
+
+        // Losing row
+        h += `<tr>
+          <td><input type="text" class="eval-cfg-name" data-role="lose-label" value="${esc(draft.loseLabel)}"></td>
+          <td class="eval-cfg-sep">&le;</td>
+          <td><span class="eval-cfg-lose-thresh eval-cfg-fixed">${draft.neg[nNeg-1].lower.toFixed(1)}</span></td>
+          <td></td>
+        </tr>`;
+
+        tbl.innerHTML = h;
+
+        document.getElementById('eval-cfg-add-btn').disabled = (draft.pos.length >= maxPairs && draft.neg.length >= maxPairs);
+
+        // Live-update "from" spans and winning/losing threshold displays as user types.
+        function _syncFromSpans() {
+          const euVal = parseFloat(tbl.querySelector('[data-role="equal-upper"]')?.value);
+          const elVal = parseFloat(tbl.querySelector('[data-role="equal-lower"]')?.value);
+          tbl.querySelectorAll('[data-from-pos]').forEach(span => {
+            const i = +span.dataset.fromPos;
+            if (i === 0) {
+              if (!isNaN(euVal)) span.textContent = euVal.toFixed(1);
+            } else {
+              const prev = tbl.querySelector(`[data-role="pos-upper"][data-idx="${i-1}"]`);
+              if (prev) { const v = parseFloat(prev.value); if (!isNaN(v)) span.textContent = v.toFixed(1); }
+            }
+          });
+          // Winning threshold = last pos input
+          const lastPosInput = tbl.querySelector(`[data-role="pos-upper"][data-idx="${nPos-1}"]`);
+          const winSpan = tbl.querySelector('.eval-cfg-win-thresh');
+          if (lastPosInput && winSpan) { const v = parseFloat(lastPosInput.value); if (!isNaN(v)) winSpan.textContent = v.toFixed(1); }
+
+          tbl.querySelectorAll('[data-from-neg]').forEach(span => {
+            const i = +span.dataset.fromNeg;
+            if (i === 0) {
+              if (!isNaN(elVal)) span.textContent = elVal.toFixed(1);
+            } else {
+              const prev = tbl.querySelector(`[data-role="neg-lower"][data-idx="${i-1}"]`);
+              if (prev) { const v = parseFloat(prev.value); if (!isNaN(v)) span.textContent = v.toFixed(1); }
+            }
+          });
+          // Losing threshold = last neg input
+          const lastNegInput = tbl.querySelector(`[data-role="neg-lower"][data-idx="${nNeg-1}"]`);
+          const loseSpan = tbl.querySelector('.eval-cfg-lose-thresh');
+          if (lastNegInput && loseSpan) { const v = parseFloat(lastNegInput.value); if (!isNaN(v)) loseSpan.textContent = v.toFixed(1); }
+        }
+        tbl.querySelectorAll('.eval-cfg-num').forEach(inp => inp.addEventListener('input', _syncFromSpans));
+
+        // Remove pair: always remove same index from both sides.
+        tbl.querySelectorAll('.eval-cfg-rm').forEach(btn => {
+          btn.addEventListener('click', () => {
+            _readDraft();
+            const idx = parseInt(btn.dataset.rmIdx);
+            if (draft.pos.length > 1 && idx < draft.pos.length) draft.pos.splice(idx, 1);
+            if (draft.neg.length > 1 && idx < draft.neg.length) draft.neg.splice(idx, 1);
+            _renderTable();
+          });
+        });
+      }
+
+      function _readDraft() {
+        const get = role => panel.querySelector(`[data-role="${role}"]`);
+        const v = el => el ? el.value.trim() : '';
+        draft.winLabel  = v(get('win-label'))  || draft.winLabel;
+        draft.loseLabel = v(get('lose-label')) || draft.loseLabel;
+        draft.equalUpper = parseFloat(get('equal-upper').value);
+        draft.equalLower = parseFloat(get('equal-lower').value);
+        panel.querySelectorAll('[data-role="pos-label"]').forEach(el => { draft.pos[+el.dataset.idx].label = el.value.trim() || draft.pos[+el.dataset.idx].label; });
+        panel.querySelectorAll('[data-role="pos-upper"]').forEach(el => { draft.pos[+el.dataset.idx].upper = parseFloat(el.value); });
+        panel.querySelectorAll('[data-role="neg-label"]').forEach(el => { draft.neg[+el.dataset.idx].label = el.value.trim() || draft.neg[+el.dataset.idx].label; });
+        panel.querySelectorAll('[data-role="neg-lower"]').forEach(el => { draft.neg[+el.dataset.idx].lower = parseFloat(el.value); });
+      }
+
+      function _validate(cfg) {
+        const errs = [];
+        if (isNaN(cfg.equalUpper) || cfg.equalUpper <= 0) errs.push('Equal upper bound must be > 0.');
+        if (isNaN(cfg.equalLower) || cfg.equalLower >= 0) errs.push('Equal lower bound must be < 0.');
+        let prev = cfg.equalUpper;
+        cfg.pos.forEach((p, i) => {
+          if (isNaN(p.upper) || p.upper <= prev) errs.push(`Positive range ${i+1} upper must be > ${prev.toFixed(1)}.`);
+          else prev = p.upper;
+        });
+        let prevN = cfg.equalLower;
+        cfg.neg.forEach((n, i) => {
+          if (isNaN(n.lower) || n.lower >= prevN) errs.push(`Negative range ${i+1} lower must be < ${prevN.toFixed(1)}.`);
+          else prevN = n.lower;
+        });
+        return errs;
+      }
+
+      _renderTable();
+
+      panel.querySelector('.eval-cfg-close').addEventListener('click', () => overlay.remove());
+
+      document.getElementById('eval-cfg-add-btn').addEventListener('click', () => {
+        _readDraft();
+        const maxPairs = _EVAL_DEFAULTS.pos.length;
+        if (draft.pos.length < maxPairs) draft.pos.push(JSON.parse(JSON.stringify(_EVAL_DEFAULTS.pos[draft.pos.length])));
+        if (draft.neg.length < maxPairs) draft.neg.push(JSON.parse(JSON.stringify(_EVAL_DEFAULTS.neg[draft.neg.length])));
+        _renderTable();
+      });
+
+      document.getElementById('eval-cfg-cancel').addEventListener('click', () => overlay.remove());
+
+      document.getElementById('eval-cfg-apply').addEventListener('click', () => {
+        _readDraft();
+        const errs = _validate(draft);
+        const errDiv = document.getElementById('eval-cfg-err');
+        if (errs.length) { errDiv.textContent = errs[0]; return; }
+        errDiv.textContent = '';
+        _saveEvalCfg(draft);
+        _refreshEvalCfg(draft);
+        overlay.remove();
+        renderSummary();
+      });
     }
 
     // Stored rows for navigation from summary buttons.
