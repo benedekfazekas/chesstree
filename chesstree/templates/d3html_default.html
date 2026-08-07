@@ -252,6 +252,11 @@
       font-size: 0.74rem;
       word-break: break-word;
     }
+    .node-comment-result {
+      font-style: normal;
+      font-weight: 600;
+      color: var(--text-muted);
+    }
     .node-comment a, .game-comment-text a, .deck-var-comment a {
       color: inherit;
       text-decoration: underline;
@@ -281,6 +286,13 @@
       font-weight: normal;
       color: var(--text-dim);
       font-style: italic;
+    }
+    .node-header-score {
+      font-weight: 700;
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      white-space: nowrap;
+      margin-left: 6px;
     }
     .node-card hr {
       border: none;
@@ -476,6 +488,12 @@
       box-shadow: 0 0 4px var(--var-card-hover-shadow);
     }
     .deck-var-move { font-weight: 600; }
+    .deck-var-score {
+      font-weight: 700;
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      margin-left: 4px;
+    }
     .deck-var-comment {
       font-size: 0.74rem;
       font-style: italic;
@@ -534,6 +552,8 @@
 
     .vs-comment { font-style: italic; color: var(--comment-color); }
     .vs-eval { font-weight: 600; white-space: nowrap; }
+    .vs-eval-num { font-family: monospace; margin-right: 3px; }
+    .vs-result { white-space: nowrap; text-align: center; font-size: 0.85rem; }
     .vs-moves { color: var(--moves-color); word-break: break-word; }
     .vs-move-num { color: var(--move-num-color); font-size: 0.72rem; }
     .vs-board { padding: 4px 8px; vertical-align: middle; text-align: center; }
@@ -1112,7 +1132,11 @@
       const evalStr = _formatEval(lastEval);
       const headerStyle = headerBg ? ` style="background:${headerBg};border-radius:3px;padding:2px 4px;margin:-2px -4px"` : "";
       const titleAttr = evalStr ? ` title="${esc(evalStr)}"` : "";
-      return `<div class="node-header"${headerStyle}${titleAttr}><span>${lineType}: ${range}</span>${countBadge}</div><hr/>`;
+      const score = _subtreeResultScore(data);
+      const scoreHTML = score !== null
+        ? ` <span class="node-header-score">${esc(_formatScore(score))}</span>`
+        : '';
+      return `<div class="node-header"${headerStyle}${titleAttr}><span>${lineType}: ${range}${countBadge}</span>${scoreHTML}</div><hr/>`;
     }
 
     // Return { collapsed, hiddenCount } for a data node
@@ -1431,8 +1455,14 @@
           });
         }
         html += `</div>`;
-        if (blk.comment) html += `<div class="node-comment">${renderMarkdown(blk.comment)}</div>`;
-        const img = blk.moves[blk.moves.length - 1]?.image;
+        const blkLastMove = blk.moves[blk.moves.length - 1] || null;
+        const blkResult = blkLastMove?.result ? _formatResult(blkLastMove.result) : '';
+        if (blk.comment) {
+          html += `<div class="node-comment">${renderMarkdown(blk.comment)}${blkResult ? ` <span class="node-comment-result">${esc(blkResult)}</span>` : ''}</div>`;
+        } else if (blkResult) {
+          html += `<div class="node-comment"><span class="node-comment-result">${esc(blkResult)}</span></div>`;
+        }
+        const img = blkLastMove?.image;
         if (img) html += `<img class="node-image" src="./${esc(img)}" alt="board position">`;
       });
 
@@ -1696,6 +1726,7 @@
           const vMoves = v.moves || [];
           const vLastEval = vMoves.length ? (vMoves[vMoves.length - 1]?.eval || null) : null;
           const vBg = _evalRowBg(vLastEval);
+          const vScore = _subtreeResultScore(v);
           let btnContent = '';
           if (edge) {
             if (edge.startingComment) {
@@ -1705,11 +1736,15 @@
             const vEvalStr = _formatEval(vLastEval);
             const moveTitleAttr = vEvalStr ? ` title="${esc(vEvalStr)}"` : '';
             btnContent += `<span class="deck-var-move${edge.nagClass ? ' ' + edge.nagClass : ''}"${moveStyle}${moveTitleAttr}>${esc(edge.move)}</span>`;
+            if (vScore !== null) {
+              btnContent += ` <span class="deck-var-score">${esc(_formatScore(vScore))}</span>`;
+            }
             if (edge.comment) {
               btnContent += `<div class="deck-var-comment">${esc(edge.comment.join(' '))}</div>`;
             }
           } else {
             btnContent = `Variation ${i + 1}`;
+            if (vScore !== null) btnContent += ` <span class="deck-var-score">${esc(_formatScore(vScore))}</span>`;
           }
           const subtreeEntries = _subtreeEvalEntries(v);
           if (subtreeEntries.length) {
@@ -2237,6 +2272,31 @@
       return cp >= 0 ? `+${pawns}` : `${pawns}`;
     }
 
+    // Format a PGN result string for display ("1/2-1/2" → "½-½").
+    function _formatResult(result) {
+      if (!result || result === '*') return '';
+      if (result === '1/2-1/2') return '½-½';
+      return result;
+    }
+
+    // Get the game result for a row: use move-level [%result] first,
+    // fall back to treeData.headers.Result for single-game files.
+    function _getRowResult(lastMove) {
+      if (lastMove && lastMove.result) return lastMove.result;
+      const r = treeData.headers && treeData.headers.Result;
+      return (r && r !== '*') ? r : null;
+    }
+
+    // Compute the player's score contribution from a result string.
+    // forBlack: 0-1 = 1, 1/2-1/2 = 0.5, 1-0 = 0
+    // white:    1-0 = 1, 1/2-1/2 = 0.5, 0-1 = 0
+    function _resultPlayerScore(result) {
+      if (!result || result === '*') return null;
+      if (result === '1/2-1/2') return 0.5;
+      if (forBlack) return result === '0-1' ? 1 : 0;
+      return result === '1-0' ? 1 : 0;
+    }
+
     // Determine row background color from eval (continuous gradient).
     // positive cp/mate = white advantage; alpha scales with magnitude.
     function _evalRowBg(evalObj) {
@@ -2275,6 +2335,28 @@
         result.push(..._subtreeEvalEntries(child));
       });
       return result;
+    }
+
+    // Recursively sum player result scores across a segment and all its descendants.
+    // Returns { total, count } — null when count === 0.
+    function _subtreeResultScore(seg) {
+      let total = 0, count = 0;
+      function walk(s) {
+        (s.moves || []).forEach(m => {
+          const sc = _resultPlayerScore(m.result || null);
+          if (sc !== null) { total += sc; count++; }
+        });
+        (s.children || []).forEach(walk);
+      }
+      walk(seg);
+      return count > 0 ? { total, count } : null;
+    }
+
+    // Format a subtree result score for compact display: "agg. result: N/X".
+    function _formatScore(sr) {
+      if (!sr) return '';
+      const tot = sr.total % 1 === 0 ? String(sr.total) : sr.total.toFixed(1);
+      return `agg. result: ${sr.count}/${tot}`;
     }
 
     // Build the moves HTML for the summary table (no comments, with hover if enabled).
@@ -2432,7 +2514,7 @@
       });
       hdr.querySelector('.eval-barchart-cfg-btn').addEventListener('click', () => _openEvalConfigOverlay());
 
-      const margin = { top: 10, right: 50, bottom: 42, left: 165 };
+      const margin = { top: 10, right: 80, bottom: 42, left: 165 };
       const innerW = 160;
       const innerH = activeCats.length * 24;
       const svgW = margin.left + innerW + margin.right;
@@ -2502,27 +2584,106 @@
         .attr('opacity', 0.65)
         .text('count');
 
-      // Y-axis label
+      // Left Y-axis label — bold to visually anchor the primary axis
       g.append('text')
         .attr('transform', `rotate(-90)`)
         .attr('x', -(innerH / 2))
         .attr('y', -margin.left + 10)
         .attr('text-anchor', 'middle')
         .attr('font-size', '11px')
+        .attr('font-weight', 'bold')
         .attr('fill', 'currentColor')
         .attr('opacity', 0.65)
         .text('opening end eval');
 
-      // Count labels — inside each bar row group
+      // Right Y-axis label for the result score line
+      g.append('text')
+        .attr('transform', `rotate(-90)`)
+        .attr('x', -(innerH / 2))
+        .attr('y', innerW + margin.right - 12)
+        .attr('text-anchor', 'middle')
+        .attr('font-size', '11px')
+        .attr('fill', 'currentColor')
+        .attr('opacity', 0.65)
+        .text('aggregated result');
+
+      // Count labels — bold to distinguish from result score labels
       barRows.append('text')
         .attr('class', 'eval-count')
         .attr('x', d => xScale(buckets[d.key].length) + 5)
         .attr('y', d => yScale(d.key) + yScale.bandwidth() / 2)
         .attr('dy', '0.35em')
         .attr('font-size', '11px')
+        .attr('font-weight', 'bold')
         .attr('fill', 'currentColor')
         .attr('opacity', 0.65)
         .text(d => buckets[d.key].length);
+
+      // Result score line overlay — aggregate per-category score from game results.
+      // Score: win=1, draw=0.5, loss=0 (adjusted for forBlack). Recalculated with buckets.
+      const _bucketScores = {};
+      let _hasAnyScore = false;
+      activeCats.forEach(c => {
+        let total = 0, n = 0;
+        buckets[c.key].forEach(row => {
+          const lm = row.fullMoves[row.fullMoves.length - 1] || null;
+          const s = _resultPlayerScore(_getRowResult(lm));
+          if (s !== null) { total += s; n++; }
+        });
+        _bucketScores[c.key] = n > 0 ? total : null;
+        if (n > 0) _hasAnyScore = true;
+      });
+
+      if (_hasAnyScore) {
+        const dotsData = activeCats.filter(c => _bucketScores[c.key] !== null);
+        const overlay = g.append('g').attr('class', 'result-score-overlay').style('pointer-events', 'none');
+
+        // Dashed line connecting the score dots across categories
+        if (dotsData.length > 1) {
+          const pts = dotsData.map(c => [xScale(_bucketScores[c.key]), yScale(c.key) + yScale.bandwidth() / 2]);
+          overlay.append('path')
+            .attr('d', 'M' + pts.map(p => p.join(',')).join('L'))
+            .attr('fill', 'none')
+            .attr('stroke', 'currentColor')
+            .attr('stroke-width', 1.5)
+            .attr('stroke-dasharray', '4,3')
+            .attr('opacity', 0.6);
+        }
+
+        // Circle markers
+        overlay.selectAll('.result-dot')
+          .data(dotsData)
+          .join('circle')
+          .attr('class', 'result-dot')
+          .attr('cx', d => xScale(_bucketScores[d.key]))
+          .attr('cy', d => yScale(d.key) + yScale.bandwidth() / 2)
+          .attr('r', 4)
+          .attr('fill', 'var(--bg)')
+          .attr('stroke', 'currentColor')
+          .attr('stroke-width', 1.5)
+          .append('title')
+          .text(d => {
+            const sc = _bucketScores[d.key];
+            const fmt = sc % 1 === 0 ? sc : sc.toFixed(1);
+            return `${d.label}: result score ${fmt}`;
+          });
+
+        // Score value labels to the right of each dot
+        overlay.selectAll('.result-score-label')
+          .data(dotsData)
+          .join('text')
+          .attr('class', 'result-score-label')
+          .attr('x', d => xScale(_bucketScores[d.key]) + 7)
+          .attr('y', d => yScale(d.key) + yScale.bandwidth() / 2)
+          .attr('dy', '0.35em')
+          .attr('font-size', '10px')
+          .attr('fill', 'currentColor')
+          .attr('opacity', 0.75)
+          .text(d => {
+            const sc = _bucketScores[d.key];
+            return sc % 1 === 0 ? String(sc) : sc.toFixed(1);
+          });
+      }
 
       // Apply stored filter selection to visual state and table rows.
       function _applyEvalFilter() {
@@ -2805,7 +2966,7 @@
       html += '<table class="var-summary-table"><thead><tr>';
       html += '<th>#</th><th>Comment</th><th>Moves</th>';
       if (hasBoardImages) html += '<th>Opening End</th>';
-      html += '<th>Eval</th>';
+      html += '<th>Opening End Eval</th><th>Result</th>';
       html += '</tr></thead><tbody>';
 
       _summaryRows.forEach(({ fullMoves, segment, segmentPath, isMainLineLast }, idx) => {
@@ -2813,6 +2974,7 @@
         const lastMove = moves[moves.length - 1] || null;
 
         // Comment: last move's comment, then walk back to find the last commented move.
+        // Strip the ": **eval**" suffix that merge_openings embeds — eval lives in its own column.
         let comment = null;
         if (lastMove && lastMove.comment) {
           comment = lastMove.comment;
@@ -2821,14 +2983,19 @@
             if (moves[i].comment) { comment = moves[i].comment; break; }
           }
         }
+        const commentDisplay = comment ? (comment.replace(/\s*:\s*\*\*[^*]+\*\*\s*$/, '').trim() || null) : null;
 
-        // Eval: from last move — show category label, numeric value as tooltip.
+        // Eval: from last move — show numeric value in cell, category label as tooltip.
         const evalObj = lastMove ? (lastMove.eval || null) : null;
         const evalStr = _formatEval(evalObj);
         const catKey = _evalCategoryKey(evalObj);
         const catLabel = catKey ? (_EVAL_CATEGORIES.find(c => c.key === catKey)?.label || '') : '';
         const rowBg = _evalRowBg(evalObj);
         const rowTypeClass = isMainLineLast ? 'var-summary-mainline-row' : 'var-summary-var-row';
+
+        // Result: from move-level [%result] or fallback to headers.Result.
+        const rowResult = _getRowResult(lastMove);
+        const rowResultStr = _formatResult(rowResult);
 
         // Merged hover fens from all segments in path.
         const mergedHoverFens = hoverEnabled ? _mergeHoverFens(segmentPath) : {};
@@ -2839,13 +3006,14 @@
         html += `<button class="vs-nav-btn" data-row="${idx}" data-target="tree" title="Open in tree view">🌳</button>`;
         html += `<button class="vs-nav-btn" data-row="${idx}" data-target="deck" title="Open in deck view">📇</button>`;
         html += `</td>`;
-        html += `<td class="vs-comment">${comment ? renderMarkdown(comment) : ''}</td>`;
+        html += `<td class="vs-comment">${commentDisplay ? renderMarkdown(commentDisplay) : ''}</td>`;
         html += `<td class="vs-moves">${_summaryMovesHTML(moves, mergedHoverFens)}</td>`;
         if (hasBoardImages) {
           const boardImg = lastMove ? lastMove.image : null;
           html += `<td class="vs-board">${boardImg ? `<img src="./${esc(boardImg)}" alt="board position">` : ''}</td>`;
         }
-        html += `<td class="vs-eval"${evalStr ? ` title="${esc(evalStr)}"` : ''}>${esc(catLabel)}</td>`;
+        html += `<td class="vs-eval">${esc(catLabel)}: ${evalStr ? `<span class="vs-eval-num">${esc(evalStr)}</span> ` : ''}</td>`;
+        html += `<td class="vs-result">${esc(rowResultStr)}</td>`;
         html += '</tr>';
       });
 

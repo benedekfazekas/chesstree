@@ -548,3 +548,66 @@ class TestVarSummaryMode:
     def test_for_black_true_when_set(self):
         tree, _, _ = export_d3tree(_load(LISPERER), board_img_for_black=True)
         assert tree["forBlack"] is True
+
+
+# ---------------------------------------------------------------------------
+# Move-level result field
+# ---------------------------------------------------------------------------
+
+
+class TestMoveResult:
+    def test_result_field_present_on_all_moves(self):
+        pgn = "[White \"A\"]\n[Black \"B\"]\n\n1. e4 e5 *"
+        tree, _, _ = export_d3tree(_load_pgn(pgn))
+        for m in _all_segments(tree)[0]["moves"]:
+            assert "result" in m
+
+    def test_result_none_when_no_annotation(self):
+        pgn = "[White \"A\"]\n[Black \"B\"]\n\n1. e4 { just a comment } *"
+        tree, _, _ = export_d3tree(_load_pgn(pgn))
+        assert _all_segments(tree)[0]["moves"][0]["result"] is None
+
+    def test_result_white_wins(self):
+        pgn = "[White \"A\"]\n[Black \"B\"]\n\n1. e4 { [%result 1-0] } 1-0"
+        tree, _, _ = export_d3tree(_load_pgn(pgn))
+        assert _all_segments(tree)[0]["moves"][0]["result"] == "1-0"
+
+    def test_result_black_wins(self):
+        pgn = "[White \"A\"]\n[Black \"B\"]\n\n1. e4 { [%result 0-1] } 0-1"
+        tree, _, _ = export_d3tree(_load_pgn(pgn))
+        assert _all_segments(tree)[0]["moves"][0]["result"] == "0-1"
+
+    def test_result_draw(self):
+        pgn = "[White \"A\"]\n[Black \"B\"]\n\n1. e4 { [%result 1/2-1/2] } 1/2-1/2"
+        tree, _, _ = export_d3tree(_load_pgn(pgn))
+        assert _all_segments(tree)[0]["moves"][0]["result"] == "1/2-1/2"
+
+    def test_result_stripped_from_comment(self):
+        """[%result ...] must not appear in the displayed comment text."""
+        pgn = "[White \"A\"]\n[Black \"B\"]\n\n1. e4 { Good game [%result 1-0] } 1-0"
+        tree, _, _ = export_d3tree(_load_pgn(pgn))
+        assert _all_segments(tree)[0]["moves"][0]["comment"] == "Good game"
+
+    def test_result_coexists_with_eval(self):
+        """Move can carry both an eval and a result annotation."""
+        pgn = (
+            "[White \"A\"]\n[Black \"B\"]\n\n"
+            "1. e4 { [%eval 0.30,20] [%result 1-0] } 1-0"
+        )
+        tree, _, _ = export_d3tree(_load_pgn(pgn))
+        m = _all_segments(tree)[0]["moves"][0]
+        assert m["result"] == "1-0"
+        assert m["eval"] is not None
+        assert m["eval"]["cp"] == 30
+
+    def test_result_only_on_annotated_move_not_others(self):
+        """Only the move with [%result ...] gets a non-None result; others stay None."""
+        pgn = (
+            "[White \"A\"]\n[Black \"B\"]\n\n"
+            "1. e4 e5 2. Nf3 { [%result 1-0] } 1-0"
+        )
+        tree, _, _ = export_d3tree(_load_pgn(pgn))
+        moves = _all_segments(tree)[0]["moves"]
+        assert moves[0]["result"] is None   # 1. e4 — no annotation
+        assert moves[1]["result"] is None   # 1... e5 — no annotation
+        assert moves[2]["result"] == "1-0"  # 2. Nf3 — annotated

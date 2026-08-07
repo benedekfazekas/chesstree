@@ -191,6 +191,7 @@ The engine is opened once per invocation (via `leaf_evaluator.make_engine_provid
 - When the engine is available but returns `None` for a specific position (analyse error), that individual leaf falls back to the Lichess `[%eval]` for its source game.
 - The leaf-label format (`vs [Opponent](url): **eval**`) is unchanged; only the *source* of the eval string differs.
 - `normalize_fen` lives in `chesstree/utils.py` (not in `merge_openings.py`) and is imported from there by both the merge script and `leaf_evaluator.py`.
+- `create_slice` embeds `[%result X]` (where X is `1-0`, `0-1`, or `1/2-1/2`) in the leaf node comment alongside `[%opening_end]`, so per-game result is available in the d3tree `result` field on each leaf move. Games with result `*` are silently omitted.
 
 ### Image modes
 Four modes, combinable: `none`, `all`, `variations` (default), `commented`.
@@ -213,7 +214,8 @@ Each segment dict has: `type: "segment"`, `isVariation` (bool), `isMainLine` (bo
 `edgeLabel` (or `null`), `moves` (list), `hoverFens` (dict), `children` (list of segments).
 
 Each move dict has: `num` (e.g. `"7."` for white, `"7\u2026"` for black), `san`, `nag`,
-`nagClass`, `fen`, `comment` (stripped of `[%...]`), `eval` (or `null`), `image` (or `null`).
+`nagClass`, `fen`, `comment` (stripped of `[%...]`), `eval` (or `null`), `result` (or `null`),
+`image` (or `null`).
 
 The `edgeLabel` dict (on variation segments) has: `move` (e.g. `"7. Nc3"` or `"10\u2026 Ng4"`),
 `nagClass`, `startingComment` (list of wrapped lines or `null`), `comment` (same).
@@ -238,6 +240,13 @@ variation child = `parentSegment.moves[:-1]` plus ancestor moves inherited from 
 - Optional `"depth"` key on either form
 - `null` when no eval annotation is present
 - The `comment` field is always stripped of `[%...]` annotations; `eval` captures the raw value.
+
+### Result field on moves
+`move.result` is parsed from `[%result ...]` in the raw PGN comment by `_RESULT_RE`.
+- `"1-0"`, `"0-1"`, or `"1/2-1/2"` — exactly the PGN result string
+- `null` when no result annotation is present
+- Only leaf moves in merged game trees carry this (embedded by `create_slice` in `merge_openings.py`)
+- For single-game files, the result falls back to `treeData.headers.Result` in the template via `_getRowResult(lastMove)`
 
 ---
 

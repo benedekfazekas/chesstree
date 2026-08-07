@@ -109,6 +109,11 @@ def create_slice(
     existing = cursor.comment.strip()
     cursor.comment = (existing + " [%opening_end]").strip()
 
+    result_header = src.game.headers.get("Result", "*")
+    if result_header in ("1-0", "0-1", "1/2-1/2"):
+        existing = cursor.comment.strip()
+        cursor.comment = (existing + f" [%result {result_header}]").strip()
+
     label = _leaf_label(src.opponent, src.url)
     return sliced, label
 
