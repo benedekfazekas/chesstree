@@ -28,6 +28,28 @@ from chesstree.utils import normalize_fen
 
 _EVAL_RE = re.compile(r"\[%eval\s+[^\]]+\]")
 
+# ── Time-control mappings ─────────────────────────────────────────────────────
+# CLI label → set of raw platform values to accept.
+# "bullet" on Lichess subsumes ultraBullet.
+# "slow"   covers classical + correspondence on Lichess and daily on Chess.com.
+# "classical" is a precise Lichess-only bucket (no Chess.com equivalent).
+
+LICHESS_SPEED_VALUES: dict[str, frozenset[str]] = {
+    "bullet":      frozenset({"bullet", "ultraBullet"}),
+    "blitz":       frozenset({"blitz"}),
+    "rapid":       frozenset({"rapid"}),
+    "classical":   frozenset({"classical"}),
+    "slow":        frozenset({"classical", "correspondence"}),
+}
+
+CHESSCOM_TIME_CLASS_VALUES: dict[str, frozenset[str]] = {
+    "bullet":      frozenset({"bullet"}),
+    "blitz":       frozenset({"blitz"}),
+    "rapid":       frozenset({"rapid"}),
+    "classical":   frozenset(),           # no Chess.com equivalent
+    "slow":        frozenset({"daily"}),
+}
+
 # ── Contract dataclasses ──────────────────────────────────────────────────────
 
 
@@ -69,21 +91,30 @@ def iter_games(
     color: str | None = None,
     since: str | None = None,
     until: str | None = None,
+    time_control: list[str] | None = None,
 ) -> Iterator[SourceGame]:
     """Yield :class:`SourceGame` objects for every valid game in *spec*.
 
     *since* and *until* are ``'YYYY-MM'`` strings (inclusive of the whole named
     month on both sources).  Each adapter converts them to whatever it needs:
     epoch milliseconds for Lichess, month selection for Chess.com.
+
+    *time_control* is a list of CLI speed labels to match: ``'bullet'``,
+    ``'blitz'``, ``'rapid'``, ``'classical'``, ``'slow'``.  Each label maps
+    to one or more raw platform values via :data:`LICHESS_SPEED_VALUES` /
+    :data:`CHESSCOM_TIME_CLASS_VALUES`.  ``None`` means no filter.
     """
     if spec.source == "lichess":
         since_ms = _month_to_ms_start(since) if since else None
         until_ms = _month_to_ms_end(until) if until else None
         yield from _iter_lichess_games(
-            spec, color=color, since_ms=since_ms, until_ms=until_ms
+            spec, color=color, since_ms=since_ms, until_ms=until_ms,
+            time_control=time_control,
         )
     elif spec.source == "chesscom":
-        yield from _iter_chesscom_games(spec, color=color, since=since, until=until)
+        yield from _iter_chesscom_games(
+            spec, color=color, since=since, until=until, time_control=time_control,
+        )
     else:
         raise ValueError(f"Unknown source: {spec.source!r}")
 
@@ -254,6 +285,7 @@ def _iter_lichess_games(
     color: Optional[str] = None,
     since_ms: Optional[int] = None,
     until_ms: Optional[int] = None,
+    time_control: Optional[list[str]] = None,
 ) -> Iterator[SourceGame]:
     """Yield :class:`SourceGame` objects from Lichess, using the cache when present."""
     if spec.cache_path is not None and os.path.exists(spec.cache_path):
@@ -281,6 +313,12 @@ def _iter_lichess_games(
             print(f"Saved games to cache: {spec.cache_path}", file=sys.stderr)
 
     for gd in raw_games:
+        if time_control is not None:
+            allowed = frozenset().union(
+                *(LICHESS_SPEED_VALUES.get(tc, frozenset()) for tc in time_control)
+            )
+            if gd.get("speed") not in allowed:
+                continue
         src = _build_lichess_source_game(gd, spec.username)
         if src is not None:
             yield src
@@ -373,6 +411,7 @@ def _iter_chesscom_games(
     color: Optional[str] = None,
     since: Optional[str] = None,
     until: Optional[str] = None,
+    time_control: Optional[list[str]] = None,
     _sleep_fn: Callable[[float], None] = time.sleep,
 ) -> Iterator[SourceGame]:
     """Yield :class:`SourceGame` objects from Chess.com, using the cache when present."""
@@ -381,7 +420,7 @@ def _iter_chesscom_games(
         raw_games = load_cache(spec.cache_path, spec)
         print(f"Loaded {len(raw_games)} games from cache", file=sys.stderr)
         yield from _iter_chesscom_raw_games(
-            raw_games, spec, color=color
+            raw_games, spec, color=color, time_control=time_control,
         )
         return
 
@@ -424,6 +463,12 @@ def _iter_chesscom_games(
         for gd in reversed(games_in_archive):
             if spec.max_games is not None and yielded >= spec.max_games:
                 break
+            if time_control is not None:
+                allowed = frozenset().union(
+                    *(CHESSCOM_TIME_CLASS_VALUES.get(tc, frozenset()) for tc in time_control)
+                )
+                if gd.get("time_class") not in allowed:
+                    continue
             src = _build_chesscom_source_game(gd, spec.username)
             if src is None:
                 continue
@@ -447,6 +492,7 @@ def _iter_chesscom_raw_games(
     spec: SourceSpec,
     *,
     color: Optional[str] = None,
+    time_control: Optional[list[str]] = None,
 ) -> Iterator[SourceGame]:
     """Yield SourceGame from a raw list of Chess.com game dicts (cache path).
 
@@ -458,6 +504,12 @@ def _iter_chesscom_raw_games(
     for gd in raw_games:
         if spec.max_games is not None and yielded >= spec.max_games:
             break
+        if time_control is not None:
+            allowed = frozenset().union(
+                *(CHESSCOM_TIME_CLASS_VALUES.get(tc, frozenset()) for tc in time_control)
+            )
+            if gd.get("time_class") not in allowed:
+                continue
         src = _build_chesscom_source_game(gd, spec.username)
         if src is None:
             continue

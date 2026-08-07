@@ -300,6 +300,20 @@ def main() -> None:
         default=None,
         help="Include games up to and including this month (inclusive)",
     )
+    parser.add_argument(
+        "--time-control",
+        choices=["bullet", "blitz", "rapid", "classical", "slow"],
+        nargs="+",
+        default=None,
+        dest="time_control",
+        metavar="SPEED",
+        help=(
+            "Filter by time control; one or more of: bullet blitz rapid classical slow. "
+            "'bullet' includes ultraBullet on Lichess. "
+            "'classical' matches only Lichess classical (no Chess.com equivalent). "
+            "'slow' matches classical and correspondence on Lichess, and daily on Chess.com."
+        ),
+    )
     parser.add_argument("--output", help="Output PGN file (default: stdout)")
     parser.add_argument(
         "--event",
@@ -367,7 +381,8 @@ def main() -> None:
         g
         for spec in specs
         for g in sources.iter_games(
-            spec, color=args.color, since=args.since, until=args.until
+            spec, color=args.color, since=args.since, until=args.until,
+            time_control=args.time_control,
         )
     ]
 
