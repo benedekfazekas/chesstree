@@ -177,6 +177,39 @@ architect.
 reason, it must be reported to the human — expected model, actual model, and why. No silent
 substitution.
 
+## Observability — session cost reporting
+
+Brainy logs every orchestration event to the per-session SQL database and the runtime records
+exact token and time data automatically. Together they give a full cost picture for any session.
+
+### What is logged and where
+
+| Store | Written by | Contents |
+|---|---|---|
+| `~/.copilot/session-store.db` | Runtime (automatic) | Token counts (`input`, `cache_read`, `cache_write`, `output`, `reasoning`), `duration_ms`, model, per API call |
+| `~/.copilot/session-state/<id>/session.db` | Brainy (via `sql` tool) | `run_log` — workflow events: who was dispatched, to which phase, what round, what came back |
+
+### The `run_log` table
+
+Brainy inserts a row **before** every agent delegation (`action='dispatched'`) and **after** every
+return (`action='returned'`), plus rows for mechanical check results, escalations, and halts.
+Each row carries: `run_id`, `phase`, `round`, `agent`, `model`, `action`, `detail`, `ts`.
+
+### Reading the report
+
+```bash
+python3 .github/agents/session_cost.py --list          # list recent sessions
+python3 .github/agents/session_cost.py <session-id>    # full report for one session
+```
+
+The report shows:
+- Token breakdown by model: input, cache read/write, output, reasoning
+- Wall time per model and total
+- Cache hit % (fraction of input served from cache — the main context-pressure signal)
+- Orchestration timeline from the `run_log` (orchestrated sessions only)
+
+Since each agent runs a distinct model, **model = agent** is unambiguous in the token table.
+
 ## Style
 
 Brainy reports to the human in **simple language that stays technically precise**, and uses
