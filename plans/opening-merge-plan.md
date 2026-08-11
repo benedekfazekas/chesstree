@@ -8,7 +8,7 @@ Build a standalone repository script that can fetch or read source games, filter
 - each input game becomes a variation
 - each variation is cut at the locally computed opening/end-of-opening marker
 - each leaf comment lists the source games for that leaf
-- leaf-evaluation enrichment is deferred until after local `opening_end` ownership lands
+- leaf-evaluation enrichment is deferred until after local `opening_end` ownership lands *(now implemented — see `chesstree/leaf_evaluator.py` and `plans/leaf-evaluation-plan.md`)*
 
 The merged PGN starts from move 1. The pre-filter moves form a linear preamble; branching begins at
 the filter position (where filtered games diverge in opening play). In the common case all filtered
@@ -60,7 +60,7 @@ owned logic.
 - Chess.com acquisition
 - local-directory acquisition
 - local ownership of `opening_end`
-- local ownership of leaf evaluation
+- local ownership of leaf evaluation — **landed** (`chesstree/leaf_evaluator.py`; see `plans/leaf-evaluation-plan.md`)
 - move-prefix filtering, if FEN filtering is already sufficient for the POC
 - broader cleanup or generalization work beyond what is needed to prove the concept
 
@@ -88,9 +88,21 @@ owned logic.
 
 This section is the source of truth for how `opening_end` should be computed. The acquisition sections below should refer to this logic rather than to Lichess `division.middle`.
 
+> **Status: LANDED.** The local divider is implemented in `chesstree/opening_divider.py`
+> (`opening_end_ply`, `boards_from_game`, `annotate_opening_end`) as a faithful port of
+> `scalachess Divider.scala` (opening/middlegame boundary only). Parity is verified against the
+> 336-game Lichess corpus (`lisperer-games-black.json`): computed `opening_end_ply` matches
+> `division.middle` exactly for every standard game, including the 8 games with no middlegame
+> (both return `None`). See `tests/test_opening_divider.py`. The POC
+> `scripts/merge_openings.py` now computes the cutoff via this module (no longer reads
+> `division.middle`; `division=true` dropped from the Lichess request), and the `chesstree` CLI
+> exposes it via the opt-in `--annotate-opening-end` flag (with a new `pgn → pgn` passthrough).
+> Refer to `chesstree/opening_divider.py` from every acquisition source below.
+
 ### Current state
 
-- there is no existing acquisition or opening-merge implementation in the repository yet; the current codebase is centered on single-game parsing/exporting through `python-chess`
+- the local divider (`chesstree/opening_divider.py`) is now the in-repo source of `opening_end`; the acquisition sources below reuse it
+- the current codebase is otherwise centered on single-game parsing/exporting through `python-chess`
 - `chesstree/json_exporter.py`, `chesstree/json_parser.py`, and `chesstree/dot_exporter.py` already show the patterns this feature will need: traversing PGN trees, deriving board/FEN states, attaching annotations/comments, and serializing normal PGN variations back out
 - the previous version of this plan deferred local-directory acquisition and routed non-Lichess sources through Lichess to obtain division metadata
 
@@ -144,7 +156,9 @@ This section is the source of truth for how `opening_end` should be computed. Th
   the temporary cutoff, and run the real merge logic on those slices
 - use this temporary path to produce an early merged PGN quickly
 - once the concept is validated, replace this temporary dependence with the local divider and owned
-  leaf-evaluation plan described elsewhere in this document
+  leaf-evaluation plan described elsewhere in this document *(both have since landed: divider in
+  `chesstree/opening_divider.py`, leaf evaluation in `chesstree/leaf_evaluator.py`; see
+  `plans/leaf-evaluation-plan.md`)*
 
 ### Post-POC Lichess plan
 
@@ -180,7 +194,8 @@ This section is the source of truth for how `opening_end` should be computed. Th
 3. Define the normalized source-game contract, including source label and locally computed cutoff ply
 4. Implement the local opening-end divider plan described above, including unit tests for the
    divider heuristics (off-by-one mapping, `mixedness`, `backrankSparse`) before wiring to any
-   acquisition source
+   acquisition source — **done** (`chesstree/opening_divider.py`, `tests/test_opening_divider.py`;
+   wired into `scripts/merge_openings.py` and exposed on the CLI via `--annotate-opening-end`)
 5. Define the starting-position filter format and matching rules, supporting both move-prefix and FEN input with FEN as the priority
 6. Wire Lichess, Chess.com, and local-directory sources through the same parsed-game contract before merge
 7. Normalize each accepted source PGN into an opening slice ending at the locally computed cutoff node
@@ -201,7 +216,11 @@ This section is the source of truth for how `opening_end` should be computed. Th
 - support both move-prefix and FEN filters; prioritize FEN support first
 - for FEN matching, ignore bookkeeping-only differences such as move counters rather than comparing raw FEN strings verbatim
 - keep Chess.com acquisition in scope, but compute the cutoff locally after filtering rather than through Lichess enrichment
-- leaf-evaluation sourcing is deferred until after the local divider and normalized acquisition flow are in place
+- leaf-evaluation sourcing: implemented — locally computed via a UCI engine (Stockfish) in
+  `chesstree/leaf_evaluator.py`; `scripts/merge_openings.py` prefers local engine eval and falls
+  back to Lichess-embedded `[%eval ...]` when the engine is unavailable; CLI flags
+  `--annotate-eval`, `--eval-scope`, `--engine`, and `--eval-depth` / `--eval-time` wired in
+  `chesstree/cli.py`; see `plans/leaf-evaluation-plan.md`
 
 ## Visualization note
 
@@ -209,9 +228,13 @@ Because the end goal is likely `d3html`, leaf-comment formatting is part of the 
 
 ## Deferred work
 
-- leaf-evaluation sourcing: the POC relies on inline `[%eval ...]` annotations already embedded
-  by Lichess in the PGN (`pgnInJson=true`, `evals=true`); this is a read-through of Lichess data,
-  not owned logic; it will be replaced with locally computed evaluation after the POC is validated
+> **Done — leaf-evaluation sourcing:** locally computed via a UCI engine (Stockfish) in
+> `chesstree/leaf_evaluator.py` (pure core + convenience engine provider);
+> `scripts/merge_openings.py` now prefers local engine eval and falls back to the
+> Lichess-embedded `[%eval ...]` when the engine is unavailable; CLI flags `--annotate-eval`,
+> `--eval-scope`, `--engine`, and `--eval-depth` / `--eval-time` are wired in `chesstree/cli.py`.
+> Tracked in full in `plans/leaf-evaluation-plan.md`.
+
 - transposition edge case: proper longest-common-prefix handling when games reach the filter FEN
   via different move orders (the POC picks one move order and keeps all matching games)
 - leaf comment formatting: the final shape of the `Sources:` comment and whether long lists need

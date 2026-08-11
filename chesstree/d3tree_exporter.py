@@ -1,6 +1,7 @@
 """D3 tree exporter: converts a chess game to a JSON tree structure for D3 rendering."""
 from __future__ import annotations
 
+import re
 from typing import Optional
 
 import chess
@@ -33,6 +34,9 @@ _NAG_CSS_CLASSES: dict[int, str] = {
     NAG_GOOD_MOVE: "nag-good",
     NAG_BRILLIANT_MOVE: "nag-brilliant",
 }
+
+_RESULT_RE = re.compile(r"\[%result\s+([^\]]+)\]")
+_VALID_RESULTS = frozenset({"1-0", "0-1", "1/2-1/2"})
 
 
 def _nag_class(node: chess.pgn.ChildNode) -> Optional[str]:
@@ -287,6 +291,13 @@ class _D3TreeBuilder:
                 if eval_match.group("depth"):
                     eval_data["depth"] = int(eval_match.group("depth"))
 
+            result_data: Optional[str] = None
+            result_match = _RESULT_RE.search(comment_raw)
+            if result_match:
+                val = result_match.group(1).strip()
+                if val in _VALID_RESULTS:
+                    result_data = val
+
             moves.append(
                 {
                     "num": _format_move_num(node),
@@ -296,6 +307,7 @@ class _D3TreeBuilder:
                     "fen": fen,
                     "comment": comment,
                     "eval": eval_data,
+                    "result": result_data,
                     "image": None,
                 }
             )

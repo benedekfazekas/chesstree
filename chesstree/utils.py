@@ -130,3 +130,12 @@ _LAST_MOVE_HIGHLIGHT_COLOR = "#d4d46a"
 def _last_move_fill(move: chess.Move) -> dict[chess.Square, str]:
     """Return a fill dict highlighting the from/to squares of a move."""
     return {move.from_square: _LAST_MOVE_HIGHLIGHT_COLOR, move.to_square: _LAST_MOVE_HIGHLIGHT_COLOR}
+
+
+def normalize_fen(fen: str) -> str:
+    """Return the first 4 FEN fields (board, turn, castling, en passant).
+
+    Drops halfmove clock and fullmove counter so that position comparison
+    ignores bookkeeping-only differences.
+    """
+    return " ".join(fen.split()[:4])

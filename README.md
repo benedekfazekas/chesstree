@@ -56,7 +56,7 @@ See the [Development environment](#development-environment) section below for fu
 ```
 usage: chesstree [-h] [--version] -i INPUT [-o OUTPUT] [-f {json,edn,pgn,dot,dothtml,d3html}]
                  [--input-format {pgn,json}] [-b] [--images MODE [MODE ...]]
-                 [--template FILE] [-a] [--no-move-highlight] [-c]
+                 [--template FILE] [-a] [--no-move-highlight] [-c] [--annotate-opening-end]
 
 options:
   -h, --help                                     show this help message and exit
@@ -81,6 +81,10 @@ options:
                                                  By default the from/to squares of the last move are
                                                  coloured on every board image (dot/dothtml/d3html).
   -c, --concise                                  Compact output, no pretty-printing (json/edn output only)
+  --annotate-opening-end                         Append [%opening_end] to the move where the opening ends,
+                                                 computed locally (a faithful port of Lichess/scalachess
+                                                 Divider). No-op if the opening never ends. Works with any
+                                                 game-bearing output (pgn, json/edn, dot/dothtml/d3html).
 ```
 
 The input format is auto-detected from the file extension (`.pgn` → PGN, `.json` → chesstree JSON). Use `--input-format` to override this when reading from stdin or a file with an unusual extension.
@@ -94,6 +98,7 @@ Supported conversions:
 | PGN   | `dot`             | GraphViz DOT   |
 | PGN   | `dothtml`         | Self-contained d3-graphviz HTML viewer |
 | PGN   | `d3html`          | Self-contained D3.js interactive tree viewer |
+| PGN   | `pgn`             | PGN (passthrough — useful with `--annotate-opening-end`) |
 | JSON  | `pgn`             | PGN            |
 | JSON  | `dot`             | GraphViz DOT   |
 | JSON  | `dothtml`         | Self-contained d3-graphviz HTML viewer |
@@ -194,6 +199,63 @@ Convert a chesstree JSON file back to PGN:
 ```bash
 chesstree -i game.json -f pgn -o game_restored.pgn
 ```
+
+### Annotating the end of the opening
+
+The `--annotate-opening-end` flag marks the move at which the game leaves the opening and enters
+the middlegame. The cutoff is computed locally — a faithful port of the Lichess/`scalachess`
+`Divider` heuristics (major/minor piece count, back-rank sparseness, and piece "mixedness") — so it
+needs no network access and no external metadata. The chosen move gets a `[%opening_end]` command
+annotation appended to its comment; if the game never leaves the opening the flag is a no-op.
+
+Because the annotation is applied to the parsed game before serialization, it works with any
+game-bearing output format and with either input format:
+
+```bash
+# PGN → PGN passthrough (the simplest way to just tag the opening end)
+chesstree -i game.pgn -f pgn --annotate-opening-end -o tagged.pgn
+
+# From chesstree JSON input
+chesstree -i game.json -f pgn --annotate-opening-end -o tagged.pgn
+
+# The annotation also flows through to json/edn and the graph/tree viewers
+chesstree -i game.pgn -f d3html --annotate-opening-end -o game.html
+```
+
+`[%opening_end]` is a PGN command annotation, so it is treated as metadata (not a human comment)
+and is stripped from rendered comment text in the DOT/dothtml/d3html viewers.
+
+### Annotating positions with engine evaluations
+
+The `--annotate-eval` flag uses a local UCI engine (e.g. Stockfish) to annotate game positions with white-perspective `[%eval ...]` PGN command annotations. The annotation is applied to the parsed game before serialization, so it works with every output format: `pgn`, `json`, `edn`, `dot`, `dothtml`, and `d3html`.
+
+```bash
+# Annotate leaves and branch points (default scope), write to PGN
+chesstree -i game.pgn -f pgn --annotate-eval -o annotated.pgn
+
+# Annotate every position in the tree at depth 18
+chesstree -i game.pgn -f pgn --annotate-eval --eval-scope all --eval-depth 18
+
+# Use a time budget instead of depth (takes precedence over --eval-depth)
+chesstree -i game.pgn -f pgn --annotate-eval --eval-time 0.5
+
+# Point at a non-PATH engine binary
+chesstree -i game.pgn -f d3html --annotate-eval --engine /usr/local/bin/stockfish -o game.html
+```
+
+Available flags:
+
+| Flag | Default | Meaning |
+|------|---------|---------|
+| `--annotate-eval` | off | Enable engine evaluation annotation |
+| `--eval-scope {leaves,branch-points,all}` | `branch-points` | `leaves` = terminal nodes only; `branch-points` = leaves **plus** fork nodes (default); `all` = every node in the tree |
+| `--engine PATH` | `stockfish` | Path to or name of the UCI engine binary |
+| `--eval-depth INT` | engine default (20) | Fixed search depth |
+| `--eval-time FLOAT` | — | Wall-clock seconds per position; **takes precedence over `--eval-depth`** when both are given |
+
+If the engine binary is missing or fails to start, a warning is printed to stderr and the conversion continues without annotation — it never crashes. Each unique board position is evaluated at most once per run (de-duplicated by normalized FEN), and the engine process is opened once and cleanly closed afterwards.
+
+> **Note:** `--annotate-eval` requires a UCI engine binary such as Stockfish. See [Installing Stockfish](#installing-stockfish) below.
 
 Export a PGN game to a GraphViz DOT file for visualisation:
 
@@ -360,6 +422,50 @@ Round-trip a game through JSON:
 chesstree -i game.pgn -o game.json
 chesstree -i game.json -f pgn -o game_restored.pgn
 ```
+
+---
+
+## Installing Stockfish
+
+The `--annotate-eval` flag requires a UCI engine binary. `python-chess` provides the engine *client* but does **not** bundle any engine binary — you need to install Stockfish separately.
+
+### macOS (Homebrew)
+
+```bash
+brew install stockfish
+```
+
+### Linux (Debian/Ubuntu)
+
+```bash
+sudo apt-get install stockfish
+```
+
+On Fedora/RHEL:
+
+```bash
+sudo dnf install stockfish
+```
+
+### Other platforms / manual install
+
+Download a pre-built binary for your platform from the official site: <https://stockfishchess.org/download/>. Unpack it and either add the directory to your `PATH` or pass the full path via `--engine`:
+
+```bash
+chesstree -i game.pgn -f pgn --annotate-eval --engine /path/to/stockfish -o annotated.pgn
+```
+
+### Acceptance tests (Stockfish required)
+
+The test suite includes acceptance tests that wire a real Stockfish engine and compare local evals against the Lichess `analysis` corpus for a sample of positions. These are **excluded from the default `pytest` run and from CI** (they require a local Stockfish binary).
+
+Run them explicitly:
+
+```bash
+pytest -m acceptance
+```
+
+The tests assert sign agreement (not exact match) on clearly non-drawn positions — some mismatches are expected due to engine version, depth, and hardware differences.
 
 ---
 

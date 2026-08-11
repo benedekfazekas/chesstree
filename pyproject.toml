@@ -54,6 +54,10 @@ find = {where = ["."]}
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+markers = [
+    "acceptance: real-engine acceptance tests (require Stockfish; excluded from default runs and CI)",
+]
+addopts = "-m 'not acceptance'"
 
 [project.scripts]
 chesstree = "chesstree.cli:cli"

@@ -1,0 +1,32 @@
+[
+  {
+    "id": "golden001",
+    "variant": "standard",
+    "moves": "e4 e5 Nf3 Nc6 Bb5",
+    "pgn": "1. e4 e5 2. Nf3 Nc6 3. Bb5 $1 { [%eval 0.50] } *",
+    "players": {
+      "white": {"user": {"name": "testuser"}},
+      "black": {"user": {"name": "OppA"}}
+    }
+  },
+  {
+    "id": "golden002",
+    "variant": "standard",
+    "moves": "e4 e5 Nf3 Nc6 Bc4",
+    "pgn": "1. e4 e5 2. Nf3 Nc6 3. Bc4 { The Italian. [%eval 0.30] } *",
+    "players": {
+      "white": {"user": {"name": "testuser"}},
+      "black": {"user": {"name": "OppB"}}
+    }
+  },
+  {
+    "id": "golden003",
+    "variant": "standard",
+    "moves": "e4 c5 Nf3",
+    "pgn": "1. e4 c5 2. Nf3 { [%eval -0.20] } *",
+    "players": {
+      "white": {"user": {"name": "testuser"}},
+      "black": {"user": {"name": "OppC"}}
+    }
+  }
+]

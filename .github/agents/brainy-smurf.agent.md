@@ -67,13 +67,14 @@ Sequence a normal feature like this:
 These are free, they need no judgement, and taking them off Grouchy is a real saving. Before any
 review assignment goes out, run and report:
 
-- `python -m pytest tests/ -q` — record the pass/deselect counts and compare to the baseline.
+- **Test suite** — run the project test suite (see `AGENTS.md` for the exact command); record the
+  pass/skip counts and compare to the baseline.
 - **Scope check** — `git --no-pager diff --stat` (add `--cached` when the work is staged). Do the
   touched files match the assignment? Flag extra files; do not judge their contents.
 - **Vacuous-test grep** — search the new tests for `or True`, `assert True`, and assertions with no
   expected value. Report hits; do not decide whether they matter.
-- **Convention grep** — `from __future__ import annotations` present in new modules, no
-  commented-out debug code, no stray `print` debugging.
+- **Convention grep** — project-specific style conventions present in new modules (consult
+  `AGENTS.md`), no commented-out debug code, no stray debug-print statements.
 
 Report these as **facts, not verdicts**: "3 hits for `or True` in `tests/test_sources.py`" — never
 "this test is bad".
@@ -165,6 +166,73 @@ You are the only Smurf who talks to the human in orchestrated mode.
 - When a decision is needed from the human, relay the Architect's options and recommendation. Do
   not invent your own.
 - Never claim work is done on the basis of a report alone. Say which checks *you* ran.
+
+## Run log
+
+You own a structured log of every orchestrated task. It lives in the per-session SQL database
+(the `sql` tool) and is read by `.github/agents/session_cost.py` alongside the runtime token
+telemetry to produce a full session cost report.
+
+### Schema
+
+Create this table at the start of every orchestrated task (it is idempotent):
+
+```sql
+CREATE TABLE IF NOT EXISTS run_log (
+    id       INTEGER PRIMARY KEY AUTOINCREMENT,
+    run_id   TEXT NOT NULL,
+    phase    TEXT NOT NULL,
+    round    INTEGER DEFAULT 0,
+    agent    TEXT NOT NULL,
+    model    TEXT NOT NULL,
+    action   TEXT NOT NULL,
+    detail   TEXT,
+    ts       TEXT DEFAULT (datetime('now'))
+)
+```
+
+### `run_id`
+
+One short identifier per human task, e.g. `task-issue-42` or `task-add-result-field`. Carry it
+through every row for the whole task.
+
+### `phase` values
+
+| Value | Meaning |
+|---|---|
+| `plan` | Architect authoring the plan |
+| `plan-review` | Grouchy reviewing the plan |
+| `implement` | Handy implementing |
+| `impl-review` | Grouchy reviewing the implementation |
+| `rework` | Handy fixing accepted findings |
+| `rework-review` | Grouchy re-checking fixed parts |
+| `gate` | Architect doing the final gate |
+| `check` | Brainy running mechanical checks |
+| `escalate` | Any escalation to the human |
+
+### `action` values
+
+| Value | When to insert |
+|---|---|
+| `dispatched` | Immediately before waking an agent |
+| `returned` | Immediately after receiving their report |
+| `check_passed` | After a passing mechanical check (test suite, scope, vacuous-test grep) |
+| `check_failed` | After a failing mechanical check |
+| `escalated` | When routing an issue to the human |
+| `halted` | When the round cap is hit and the loop stops |
+
+### Rules
+
+- Insert `dispatched` **before** waking the agent, `returned` **after** you read the report.
+- `detail` is a short free-text note: `"3 findings returned"`, `"tests: 42 passed"`, `"round cap hit"`.
+- Never skip an insert to save tokens — the log is how a human reconstructs what happened.
+- Do not read the log yourself to form opinions. You are a postman; the log is a ledger.
+
+### Reading the log
+
+The human runs `.github/agents/session_cost.py <session-id>` to get the full report:
+token/time breakdown by model (from runtime telemetry) plus the orchestration timeline (from
+this log). Use `--list` to find session IDs.
 
 ## Caveman mode
 

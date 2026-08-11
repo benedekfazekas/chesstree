@@ -21,6 +21,8 @@ from chesstree.json_parser import parse_json
 from chesstree.dot_exporter import export_dot
 from chesstree.dothtml_exporter import export_dothtml
 from chesstree.d3html_exporter import export_d3html
+from chesstree import opening_divider
+from chesstree import leaf_evaluator
 from chesstree.utils import CURRENT_SCHEMA_VERSION
 
 
@@ -127,6 +129,59 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Compact output, no pretty-printing (json/edn output only)",
     )
+    parser.add_argument(
+        "--annotate-opening-end",
+        action="store_true",
+        default=False,
+        dest="annotate_opening_end",
+        help=(
+            "Append [%%opening_end] to the move where the opening ends "
+            "(computed locally by chesstree.opening_divider); "
+            "no-op if the opening never ends."
+        ),
+    )
+    parser.add_argument(
+        "--annotate-eval",
+        action="store_true",
+        default=False,
+        dest="annotate_eval",
+        help=(
+            "Enable engine-based [%%eval ...] annotation of positions "
+            "(requires a UCI engine such as Stockfish on PATH)."
+        ),
+    )
+    parser.add_argument(
+        "--eval-scope",
+        choices=["leaves", "branch-points", "all"],
+        default="branch-points",
+        dest="eval_scope",
+        help=(
+            "Which nodes to evaluate — leaves (terminal leaves only), "
+            "branch-points (leaves + branch points, the default), "
+            "or all (every node)."
+        ),
+    )
+    parser.add_argument(
+        "--engine",
+        default=leaf_evaluator.DEFAULT_ENGINE,
+        dest="engine",
+        metavar="PATH",
+        help="Path to / name of the UCI engine binary (default: stockfish).",
+    )
+    parser.add_argument(
+        "--eval-depth",
+        type=int,
+        default=None,
+        dest="eval_depth",
+        help="Engine search depth (default 20 when neither depth nor time given).",
+    )
+    parser.add_argument(
+        "--eval-time",
+        type=float,
+        default=None,
+        dest="eval_time",
+        help="Engine search time per position in seconds. Takes precedence over --eval-depth when both are given.",
+    )
     return parser.parse_args()
 
 
@@ -139,11 +194,60 @@ def _detect_input_format(input_file: TextIO, override: str | None) -> str:
     return "pgn"
 
 
+def _maybe_annotate_opening_end(game: chess.pgn.Game, enabled: bool) -> None:
+    """Annotate the opening-end move in place when the flag is set (no-op on None)."""
+    if not enabled or game is None:
+        return
+    ply = opening_divider.opening_end_ply(game)
+    if ply is not None:
+        opening_divider.annotate_opening_end(game, ply)
+
+
+def _maybe_annotate_evals_from_params(
+    game: chess.pgn.Game | None,
+    annotate_eval: bool,
+    eval_scope: str,
+    engine: str,
+    eval_depth: int | None,
+    eval_time: float | None,
+) -> None:
+    """Annotate game positions with [%eval ...] when annotate_eval is True.
+
+    Builds an engine provider from the given params, runs annotation, then
+    closes the engine. On EngineUnavailable, prints a warning and returns
+    without annotating (does not crash the conversion).
+    """
+    if not annotate_eval or game is None:
+        return
+    if eval_time is not None:
+        limit: chess.engine.Limit | None = chess.engine.Limit(time=eval_time)
+    elif eval_depth is not None:
+        limit = chess.engine.Limit(depth=eval_depth)
+    else:
+        limit = None
+    try:
+        provider, closer = leaf_evaluator.make_engine_provider(engine, limit)
+    except leaf_evaluator.EngineUnavailable as exc:
+        print(f"Warning: {exc}", file=sys.stderr)
+        print("Warning: continuing without eval annotation", file=sys.stderr)
+        return
+    try:
+        leaf_evaluator.annotate_evals(game, provider, scope=eval_scope)
+    finally:
+        closer()
+
+
 def pgn_to_json(
     input_pgn: TextIO,
     output_json: TextIO,
     edn: bool,
     concise: bool = False,
+    annotate_opening_end: bool = False,
+    annotate_eval: bool = False,
+    eval_scope: str = "branch-points",
+    engine: str = "stockfish",
+    eval_depth: int | None = None,
+    eval_time: float | None = None,
 ) -> None:
     extension = "edn" if edn else "json"
     print(f"Reading {input_pgn.name} and converting to {extension}", file=sys.stderr)
@@ -152,6 +256,9 @@ def pgn_to_json(
     if parsed_game is None:
         print(f"Error: no valid PGN game found in {input_pgn.name}", file=sys.stderr)
         sys.exit(1)
+
+    _maybe_annotate_opening_end(parsed_game, annotate_opening_end)
+    _maybe_annotate_evals_from_params(parsed_game, annotate_eval, eval_scope, engine, eval_depth, eval_time)
 
     exporter = json_exporter.JsonExporter(
         headers=True,
@@ -165,7 +272,10 @@ def pgn_to_json(
     print(f"Conversion to {extension} done, written to {output_json.name}", file=sys.stderr)
 
 
-def json_to_pgn(input_json: TextIO, output_pgn: TextIO) -> None:
+def json_to_pgn(input_json: TextIO, output_pgn: TextIO, annotate_opening_end: bool = False,
+                annotate_eval: bool = False, eval_scope: str = "branch-points",
+                engine: str = "stockfish", eval_depth: int | None = None,
+                eval_time: float | None = None) -> None:
     print(f"Reading {input_json.name} and converting to PGN", file=sys.stderr)
 
     try:
@@ -175,7 +285,35 @@ def json_to_pgn(input_json: TextIO, output_pgn: TextIO) -> None:
         sys.exit(1)
 
     game = parse_json(data)
+    _maybe_annotate_opening_end(game, annotate_opening_end)
+    _maybe_annotate_evals_from_params(game, annotate_eval, eval_scope, engine, eval_depth, eval_time)
     print(game, file=output_pgn, end="\n\n")
+    print(f"Conversion to PGN done, written to {output_pgn.name}", file=sys.stderr)
+
+
+def pgn_to_pgn(
+    input_pgn: TextIO,
+    output_pgn: TextIO,
+    annotate_opening_end: bool = False,
+    annotate_eval: bool = False,
+    eval_scope: str = "branch-points",
+    engine: str = "stockfish",
+    eval_depth: int | None = None,
+    eval_time: float | None = None,
+) -> None:
+    print(f"Reading {input_pgn.name} and converting to PGN", file=sys.stderr)
+
+    game = chess.pgn.read_game(input_pgn)
+    if game is None:
+        print(f"Error: no valid PGN game found in {input_pgn.name}", file=sys.stderr)
+        sys.exit(1)
+
+    _maybe_annotate_opening_end(game, annotate_opening_end)
+    _maybe_annotate_evals_from_params(game, annotate_eval, eval_scope, engine, eval_depth, eval_time)
+
+    exporter = chess.pgn.StringExporter(headers=True, variations=True, comments=True)
+    pgn_str = game.accept(exporter)
+    print(pgn_str, file=output_pgn, end="\n\n")
     print(f"Conversion to PGN done, written to {output_pgn.name}", file=sys.stderr)
 
 
@@ -186,6 +324,12 @@ def game_to_dot(
     images: list | None = None,
     forblack: bool = False,
     highlight_last_move: bool = True,
+    annotate_opening_end: bool = False,
+    annotate_eval: bool = False,
+    eval_scope: str = "branch-points",
+    engine: str = "stockfish",
+    eval_depth: int | None = None,
+    eval_time: float | None = None,
 ) -> None:
     print(f"Reading {input_file.name} and converting to DOT", file=sys.stderr)
 
@@ -201,6 +345,9 @@ def game_to_dot(
         if game is None:
             print(f"Error: no valid PGN game found in {input_file.name}", file=sys.stderr)
             sys.exit(1)
+
+    _maybe_annotate_opening_end(game, annotate_opening_end)
+    _maybe_annotate_evals_from_params(game, annotate_eval, eval_scope, engine, eval_depth, eval_time)
 
     modes = frozenset(images or ["variations"])
     dot_str, images_dict = export_dot(game, image_modes=modes, board_img_for_black=forblack, highlight_last_move=highlight_last_move)
@@ -227,6 +374,12 @@ def game_to_dothtml(
     forblack: bool = False,
     template_file: TextIO | None = None,
     highlight_last_move: bool = True,
+    annotate_opening_end: bool = False,
+    annotate_eval: bool = False,
+    eval_scope: str = "branch-points",
+    engine: str = "stockfish",
+    eval_depth: int | None = None,
+    eval_time: float | None = None,
 ) -> None:
     print(f"Reading {input_file.name} and converting to dothtml", file=sys.stderr)
 
@@ -243,6 +396,8 @@ def game_to_dothtml(
             print(f"Error: no valid PGN game found in {input_file.name}", file=sys.stderr)
             sys.exit(1)
 
+    _maybe_annotate_opening_end(game, annotate_opening_end)
+    _maybe_annotate_evals_from_params(game, annotate_eval, eval_scope, engine, eval_depth, eval_time)
     modes = frozenset(images or ["variations"])
     template_path = pathlib.Path(template_file.name) if template_file else None
 
@@ -283,6 +438,12 @@ def game_to_d3html(
     hover: bool = False,
     highlight_last_move: bool = True,
     var_summary_mode: str | None = None,
+    annotate_opening_end: bool = False,
+    annotate_eval: bool = False,
+    eval_scope: str = "branch-points",
+    engine: str = "stockfish",
+    eval_depth: int | None = None,
+    eval_time: float | None = None,
 ) -> None:
     print(f"Reading {input_file.name} and converting to d3html", file=sys.stderr)
 
@@ -299,6 +460,8 @@ def game_to_d3html(
             print(f"Error: no valid PGN game found in {input_file.name}", file=sys.stderr)
             sys.exit(1)
 
+    _maybe_annotate_opening_end(game, annotate_opening_end)
+    _maybe_annotate_evals_from_params(game, annotate_eval, eval_scope, engine, eval_depth, eval_time)
     modes = frozenset(images or ["variations"])
     template_path = pathlib.Path(template_file.name) if template_file else None
 
@@ -349,11 +512,39 @@ def cli() -> None:
     if input_fmt == "pgn" and output_fmt in ("json", "edn"):
         pgn_to_json(args.input, args.output,
                     edn=(output_fmt == "edn"),
-                    concise=args.concise)
+                    concise=args.concise,
+                    annotate_opening_end=args.annotate_opening_end,
+                    annotate_eval=args.annotate_eval,
+                    eval_scope=args.eval_scope,
+                    engine=args.engine,
+                    eval_depth=args.eval_depth,
+                    eval_time=args.eval_time)
+    elif input_fmt == "pgn" and output_fmt == "pgn":
+        pgn_to_pgn(args.input, args.output,
+                   annotate_opening_end=args.annotate_opening_end,
+                   annotate_eval=args.annotate_eval,
+                   eval_scope=args.eval_scope,
+                   engine=args.engine,
+                   eval_depth=args.eval_depth,
+                   eval_time=args.eval_time)
     elif input_fmt == "json" and output_fmt == "pgn":
-        json_to_pgn(args.input, args.output)
+        json_to_pgn(args.input, args.output,
+                    annotate_opening_end=args.annotate_opening_end,
+                    annotate_eval=args.annotate_eval,
+                    eval_scope=args.eval_scope,
+                    engine=args.engine,
+                    eval_depth=args.eval_depth,
+                    eval_time=args.eval_time)
     elif input_fmt in ("pgn", "json") and output_fmt == "dot":
-        game_to_dot(args.input, args.output, input_fmt, images=args.images, forblack=args.forblack, highlight_last_move=args.highlight_last_move)
+        game_to_dot(args.input, args.output, input_fmt,
+                    images=args.images, forblack=args.forblack,
+                    highlight_last_move=args.highlight_last_move,
+                    annotate_opening_end=args.annotate_opening_end,
+                    annotate_eval=args.annotate_eval,
+                    eval_scope=args.eval_scope,
+                    engine=args.engine,
+                    eval_depth=args.eval_depth,
+                    eval_time=args.eval_time)
     elif input_fmt in ("pgn", "json") and output_fmt == "dothtml":
         game_to_dothtml(
             args.input, args.output, input_fmt,
@@ -361,6 +552,12 @@ def cli() -> None:
             forblack=args.forblack,
             template_file=args.template,
             highlight_last_move=args.highlight_last_move,
+            annotate_opening_end=args.annotate_opening_end,
+            annotate_eval=args.annotate_eval,
+            eval_scope=args.eval_scope,
+            engine=args.engine,
+            eval_depth=args.eval_depth,
+            eval_time=args.eval_time,
         )
     elif input_fmt in ("pgn", "json") and output_fmt == "d3html":
         var_summary_mode: str | None = None
@@ -376,11 +573,17 @@ def cli() -> None:
             hover=args.hover,
             highlight_last_move=args.highlight_last_move,
             var_summary_mode=var_summary_mode,
+            annotate_opening_end=args.annotate_opening_end,
+            annotate_eval=args.annotate_eval,
+            eval_scope=args.eval_scope,
+            engine=args.engine,
+            eval_depth=args.eval_depth,
+            eval_time=args.eval_time,
         )
     else:
         print(
             f"Error: unsupported conversion: {input_fmt} → {output_fmt}. "
-            f"Supported: pgn→json, pgn→edn, pgn→dot, pgn→dothtml, pgn→d3html, "
+            f"Supported: pgn→json, pgn→edn, pgn→pgn, pgn→dot, pgn→dothtml, pgn→d3html, "
             f"json→pgn, json→dot, json→dothtml, json→d3html",
             file=sys.stderr,
         )
