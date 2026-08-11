@@ -177,8 +177,8 @@ the wrong model.
 ## Working rules
 
 - Read `AGENTS.md` at the start of every engagement and follow all project conventions.
-- Every plan carries the test expectation `python -m pytest tests/ -q`; nothing is "done" until it
-  passes.
+- Every plan carries a test expectation; nothing is "done" until the project's test suite passes
+  (consult `AGENTS.md` for the exact test command).
 - Prefer validated facts; when blocked by a hard choice, ask the human.
 - Keep reports short. Simple words, exact technical terms, no fog.
 

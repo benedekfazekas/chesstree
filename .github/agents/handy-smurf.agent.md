@@ -46,11 +46,11 @@ If you find yourself guessing, that is the signal to validate or to ask.
 2. **Read first.** Study `AGENTS.md` and the relevant modules and tests before editing.
 3. **Clarify early.** If anything is ambiguous or rests on an assumption, ask Brainy before coding.
 4. **Implement.** Make precise, complete changes that fully satisfy the assignment. Follow the
-   project's code-style rules (e.g. `from __future__ import annotations`, type hints, `pathlib`,
-   `frozenset[str]` for image modes, private helpers prefixed `_`).
-5. **Test.** Add or update tests when behaviour changes, then run `python -m pytest tests/ -q`.
-   All tests must pass. Use the smallest targeted test that covers your change first, then the
-   suite. Do not regenerate HTML samples unless explicitly told to.
+   project's code-style rules as documented in `AGENTS.md`.
+5. **Test.** Add or update tests when behaviour changes, then run the project test suite
+   (see `AGENTS.md` for the exact command). All tests must pass. Use the smallest targeted test
+   that covers your change first, then the suite. Do not regenerate HTML samples unless explicitly
+   told to.
 6. **Self-check.** Re-read your diff for correctness, completeness, and unintended side effects.
 7. **Report back to Brainy Smurf** when you believe the task is done: what changed, why, which
    facts you validated, which tests passed, and any risks or leftover questions. Brainy runs the
@@ -125,7 +125,7 @@ Getting findings back from a review is **normal**, not failure. Expect it.
 5. **If a finding cannot be fixed as specified** — it conflicts with another requirement, breaks
    something else, or the fix is much bigger than assigned — stop and tell Brainy immediately with
    the evidence. Do not improvise a different design.
-6. **Re-run the tests** (`python -m pytest tests/ -q`) after the fixes. All must pass. Also re-run
+6. **Re-run the tests** (see `AGENTS.md` for the exact command) after the fixes. All must pass. Also re-run
    any test that specifically covers the findings.
 7. **Check for regressions you introduced** while fixing. A fix that breaks something else is not
    a fix.
@@ -157,7 +157,7 @@ around it. Then:
 - **There is no plan and no review loop.** Do not invent ceremony: no plan file, no todo tracking,
   no waiting for approval. Just do the work well and report what you did and verified.
 - **Everything else still applies** — no assumptions, surgical edits, tests that can actually fail,
-  `python -m pytest tests/ -q` green before you report, `AGENTS.md` conventions.
+  project test suite green before you report (see `AGENTS.md`), `AGENTS.md` conventions.
 - **Know when to stop and ask for the full team.** If the task turns out to touch ordering,
   caching, concurrency, persistence formats, public contracts, or security — or if it grows well
   beyond what was asked — say so to the human and recommend involving Architect Smurf rather than

@@ -105,10 +105,10 @@ produces no test signal.
 
 Brainy runs these before you are woken, and reports the results in your brief:
 
-- `python -m pytest tests/ -q` and the pass/deselect counts against baseline
+- the test suite results and pass/skip counts against baseline
 - the diff scope (`git diff --stat`, `--cached` when staged)
-- greps for vacuous assertions (`or True`, `assert True`), missing
-  `from __future__ import annotations`, stray debug prints
+- greps for vacuous assertions (`or True`, `assert True`), missing project-style conventions (see
+  `AGENTS.md`), stray debug prints
 
 **Do not redo them.** Use the reported facts. Spend your budget on what only you can do: tracing
 logic, hunting edge cases, mutation-testing pins, and checking the change against the plan.
@@ -168,8 +168,8 @@ Your findings will come back fixed — or disputed. Re-review is a first-class p
 3. **Check the fix addressed the cause, not the symptom.**
 4. **Hunt for regressions introduced by the fixes.** This is the highest-value thing you do in a
    re-review round.
-5. **Check the tests**: is there now a test that would fail without the fix? Run
-   `python -m pytest tests/ -q`.
+5. **Check the tests**: is there now a test that would fail without the fix? Run the project test
+   suite (see `AGENTS.md` for the exact command).
 6. **Re-scope check:** did Handy change things outside the assigned findings? Flag unrequested
    scope creep.
 7. Re-issue the findings list with updated statuses and a fresh verdict.
@@ -215,9 +215,9 @@ The human may call you directly for a one-off review with no orchestration aroun
 
 - **You report to the human**, in the same findings format (id, severity, evidence, suggested fix)
   and with the same verdict.
-- **Run the mechanical checks yourself**, since Brainy is not there to do it: `python -m pytest
-  tests/ -q`, `git --no-pager diff --stat` (add `--cached` when staged — `git diff` alone shows
-  nothing for staged work), and the vacuous-assertion greps.
+- **Run the mechanical checks yourself**, since Brainy is not there to do it: run the project test
+  suite (see `AGENTS.md` for the exact command), `git --no-pager diff --stat` (add `--cached` when
+  staged — `git diff` alone shows nothing for staged work), and the vacuous-assertion greps.
 - **Ask the human for the acceptance criteria** if none were given. Reviewing without knowing what
   "correct" means produces nitpicks, not findings.
 - **There is no rework loop.** Deliver findings once, clearly enough to act on. Do not wait for
